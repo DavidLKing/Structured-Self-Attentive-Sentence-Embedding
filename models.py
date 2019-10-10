@@ -52,10 +52,12 @@ class BiLSTM(nn.Module):
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
-        return (Variable(weight.new(self.nlayers * 2, bsz, self.nhid).zero_()),
-                Variable(weight.new(self.nlayers * 2, bsz, self.nhid).zero_()))
+        return (torch.zeros(self.nlayers * 2, bsz, self.nhid, dtype=weight.dtype,
+                            layout=weight.layout, device=weight.device),
+                torch.zeros(self.nlayers * 2, bsz, self.nhid, dtype=weight.dtype,
+                            layout=weight.layout, device=weight.device))
 
-
+    
 class SelfAttentiveEncoder(nn.Module):
 
     def __init__(self, config):

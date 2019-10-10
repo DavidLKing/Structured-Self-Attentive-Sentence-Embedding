@@ -23,7 +23,7 @@ def Frobenius(mat):
         raise Exception('matrix for computing Frobenius norm should be with 3 dims')
 
 
-def package(data, volatile=False):
+def package(data, is_train=True):
     """Package data for training / evaluation."""
     data = map(lambda x: json.loads(x), data)
     dat = map(lambda x: map(lambda y: dictionary.word2idx[y], x['text']), data)
@@ -38,8 +38,9 @@ def package(data, volatile=False):
         else:
             for j in range(maxlen - len(dat[i])):
                 dat[i].append(dictionary.word2idx['<pad>'])
-    dat = Variable(torch.LongTensor(dat), volatile=volatile)
-    targets = Variable(torch.LongTensor(targets), volatile=volatile)
+    with torch.set_grad_enabled(is_train):
+        dat = torch.tensor(dat, dtype=torch.long)
+        targets = torch.tensor(targets, dtype=torch.long)
     return dat.t(), targets
 
 
@@ -49,17 +50,18 @@ def evaluate():
     total_loss = 0
     total_correct = 0
     for batch, i in enumerate(range(0, len(data_val), args.batch_size)):
-        data, targets = package(data_val[i:min(len(data_val), i+args.batch_size)], volatile=True)
-        if args.cuda:
-            data = data.cuda()
-            targets = targets.cuda()
+        last = min(len(data_val), i+args.batch_size)
+        data, targets = package(data_val[i:last], is_train=False)
+        data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
         output, attention = model.forward(data, hidden)
         output_flat = output.view(data.size(1), -1)
-        total_loss += criterion(output_flat, targets).data
+        total_loss += criterion(output_flat, targets).item()
         prediction = torch.max(output_flat, 1)[1]
-        total_correct += torch.sum((prediction == targets).float())
-    return total_loss[0] / (len(data_val) // args.batch_size), total_correct.data[0] / len(data_val)
+        total_correct += torch.sum((prediction == targets).float()).item()
+    avg_batch_loss = total_loss / (len(data_val) // args.batch_size)
+    acc = total_correct / len(data_val)
+    return avg_batch_loss, acc
 
 
 def train(epoch_number):
@@ -69,14 +71,12 @@ def train(epoch_number):
     total_pure_loss = 0  # without the penalization term
     start_time = time.time()
     for batch, i in enumerate(range(0, len(data_train), args.batch_size)):
-        data, targets = package(data_train[i:i+args.batch_size], volatile=False)
-        if args.cuda:
-            data = data.cuda()
-            targets = targets.cuda()
+        data, targets = package(data_train[i:i+args.batch_size], is_train=True)
+        data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
         output, attention = model.forward(data, hidden)
         loss = criterion(output.view(data.size(1), -1), targets)
-        total_pure_loss += loss.data
+        total_pure_loss += loss.item()
 
         if attention:  # add penalization term
             attentionT = torch.transpose(attention, 1, 2).contiguous()
@@ -88,14 +88,17 @@ def train(epoch_number):
         nn.utils.clip_grad_norm(model.parameters(), args.clip)
         optimizer.step()
 
-        total_loss += loss.data
+        total_loss += loss.item()
 
         if batch % args.log_interval == 0 and batch > 0:
             elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | ms/batch {:5.2f} | loss {:5.4f} | pure loss {:5.4f}'.format(
-                  epoch_number, batch, len(data_train) // args.batch_size,
-                  elapsed * 1000 / args.log_interval, total_loss[0] / args.log_interval,
-                  total_pure_loss[0] / args.log_interval))
+            total_batches = len(data_train) // args.batch_size
+            batch_time = elapsed * 1000 / args.log_interval
+            batch_loss = total_loss / args.log_interval
+            pure_batch_loss = total_pure_loss / args.log_interval
+            print('| epoch {:3d} | {:5d}/{:5d} batches | ms/batch {:5.2f} | loss {:5.4f} | pure loss {:5.4f}'
+                  .format(epoch_number, batch, total_batches, batch_time,
+                          batch_loss, pure_batch_loss))
             total_loss = 0
             total_pure_loss = 0
             start_time = time.time()
@@ -133,13 +136,16 @@ if __name__ == '__main__':
     # parse the arguments
     args = get_args()
 
-    # Set the random seed manually for reproducibility.
-    torch.manual_seed(args.seed)
+    device = torch.device("cpu")
     if torch.cuda.is_available():
         if not args.cuda:
             print("WARNING: You have a CUDA device, so you should probably run with --cuda")
         else:
-            torch.cuda.manual_seed(args.seed)
+            device = torch.device("cuda")
+    
+    # Set the random seed manually for reproducibility.
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed) # ignored if not --cuda
     random.seed(args.seed)
 
     # Load Dictionary
@@ -166,16 +172,14 @@ if __name__ == '__main__':
         'word-vector': args.word_vector,
         'class-number': args.class_number
     })
-    if args.cuda:
-        model = model.cuda()
+    model = model.to(device)
 
     print(args)
-    I = Variable(torch.zeros(args.batch_size, args.attention_hops, args.attention_hops))
+    I = torch.zeros(args.batch_size, args.attention_hops, args.attention_hops)
     for i in range(args.batch_size):
         for j in range(args.attention_hops):
             I.data[i][j][j] = 1
-    if args.cuda:
-        I = I.cuda()
+    I = I.to(device)
 
     criterion = nn.CrossEntropyLoss()
     if args.optimizer == 'Adam':
