@@ -12,7 +12,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str, default='', help='output file')
     parser.add_argument('--dict', type=str, default='', help='dictionary file')
     args = parser.parse_args()
-    tokenizer = spacy.load('en')
+    tokenizer = spacy.load('en_core_web_md')
     dictionary = Dictionary()
     dictionary.add_word('<pad>')  # add padding word
     with open(args.output, 'w') as fout:
