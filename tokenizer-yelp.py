@@ -23,8 +23,9 @@ if __name__ == '__main__':
             words = tokenizer(' '.join(item['text'].split()))
             data = {
                 'label': item['stars'] - 1,
-                'text': map(lambda x: x.text.lower(), words)
+                'text': [x.text.lower() for x in words]
             }
+            #map(lambda x: x.text.lower(), words)
             fout.write(json.dumps(data) + '\n')
             for item in data['text']:
                 dictionary.add_word(item)
