@@ -22,9 +22,9 @@ class BiLSTM(nn.Module):
         if os.path.exists(config['word-vector']):
             print('Loading word vectors from', config['word-vector'])
             vectors = torch.load(config['word-vector'])
-            assert vectors[2] >= config['ninp']
-            vocab = vectors[0]
-            vectors = vectors[1]
+            assert vectors[3] >= config['ninp']
+            vocab = vectors[1]
+            vectors = vectors[2]
             loaded_cnt = 0
             for word in self.dictionary.word2idx:
                 if word not in vocab:
