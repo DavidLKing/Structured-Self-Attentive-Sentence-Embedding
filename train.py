@@ -78,7 +78,7 @@ def train(epoch_number):
         loss = criterion(output.view(data.size(1), -1), targets)
         total_pure_loss += loss.item()
 
-        if attention:  # add penalization term
+        if attention is not None:  # add penalization term
             attentionT = torch.transpose(attention, 1, 2).contiguous()
             extra_loss = Frobenius(torch.bmm(attention, attentionT) - I[:attention.size(0)])
             loss += args.penalization_coeff * extra_loss
