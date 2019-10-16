@@ -25,12 +25,12 @@ def Frobenius(mat):
 
 def package(data, is_train=True):
     """Package data for training / evaluation."""
-    data = map(lambda x: json.loads(x), data)
-    dat = map(lambda x: map(lambda y: dictionary.word2idx[y], x['text']), data)
+    data = [json.loads(x) for x in data]
+    dat = [[dictionary.word2idx[y] for y in x['text']] for x in data]
     maxlen = 0
     for item in dat:
         maxlen = max(maxlen, len(item))
-    targets = map(lambda x: x['label'], data)
+    targets = [x['label'] for x in data]
     maxlen = min(maxlen, 500)
     for i in range(len(data)):
         if maxlen < len(dat[i]):
