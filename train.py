@@ -155,7 +155,7 @@ if __name__ == '__main__':
     print('Begin to load the dictionary.')
     dictionary = Dictionary(path=args.dictionary)
 
-    if not args.test_model == '':
+    if args.test_model == '':
         best_val_loss = None
         best_acc = None
 
