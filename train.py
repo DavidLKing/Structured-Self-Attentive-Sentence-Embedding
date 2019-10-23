@@ -6,7 +6,7 @@ from util import Dictionary, get_args
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.autograd import Variable
+#from torch.autograd import Variable
 
 import json
 import time
@@ -45,7 +45,7 @@ def package(data, is_train=True):
     return dat.t(), targets
 
 
-def evaluate():
+def evaluate(data_val):
     """evaluate the model while training"""
     model.eval()  # turn on the eval() switch to disable dropout
     total_loss = 0
@@ -155,55 +155,68 @@ if __name__ == '__main__':
     print('Begin to load the dictionary.')
     dictionary = Dictionary(path=args.dictionary)
 
-    best_val_loss = None
-    best_acc = None
+    if not args.test_model == '':
+        best_val_loss = None
+        best_acc = None
 
-    n_token = len(dictionary)
-    model = Classifier({
-        'dropout': args.dropout,
-        'ntoken': n_token,
-        'nlayers': args.nlayers,
-        'nhid': args.nhid,
-        'ninp': args.emsize,
-        'pooling': 'all',
-        'attention-unit': args.attention_unit,
-        'attention-hops': args.attention_hops,
-        'nfc': args.nfc,
-        'dictionary': dictionary,
-        'word-vector': args.word_vector,
-        'class-number': args.class_number
-    })
-    model = model.to(device)
+        n_token = len(dictionary)
+        model = Classifier({
+            'dropout': args.dropout,
+            'ntoken': n_token,
+            'nlayers': args.nlayers,
+            'nhid': args.nhid,
+            'ninp': args.emsize,
+            'pooling': 'all',
+            'attention-unit': args.attention_unit,
+            'attention-hops': args.attention_hops,
+            'nfc': args.nfc,
+            'dictionary': dictionary,
+            'word-vector': args.word_vector,
+            'class-number': args.class_number
+        })
+        model = model.to(device)
 
-    print(args)
-    I = torch.zeros(args.batch_size, args.attention_hops, args.attention_hops)
-    for i in range(args.batch_size):
-        for j in range(args.attention_hops):
-            I.data[i][j][j] = 1
-    I = I.to(device)
+        print(args)
+        I = torch.zeros(args.batch_size, args.attention_hops, args.attention_hops)
+        for i in range(args.batch_size):
+            for j in range(args.attention_hops):
+                I.data[i][j][j] = 1
+        I = I.to(device)
 
-    criterion = nn.CrossEntropyLoss()
-    if args.optimizer == 'Adam':
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
-    elif args.optimizer == 'SGD':
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=0.01)
+        criterion = nn.CrossEntropyLoss()
+        if args.optimizer == 'Adam':
+            optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
+        elif args.optimizer == 'SGD':
+            optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=0.01)
+        else:
+            raise Exception('For other optimizers, please add it yourself. '
+                            'supported ones are: SGD and Adam.')
+        print('Begin to load data.')
+        data_train = open(args.train_data).readlines()
+        data_val = open(args.val_data).readlines()
+        try:
+            for epoch in range(args.epochs):
+                train(epoch)
+            print('-' * 89)
+        except KeyboardInterrupt:
+            print('-' * 89)
+            print('Exit from training early.')
+            data_val = open(args.test_data).readlines()
+            evaluate_start_time = time.time()
+            test_loss, acc = evaluate()
+            print('-' * 89)
+            fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
+            print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
+            print('-' * 89)
+            exit(0)
     else:
-        raise Exception('For other optimizers, please add it yourself. '
-                        'supported ones are: SGD and Adam.')
-    print('Begin to load data.')
-    data_train = open(args.train_data).readlines()
-    data_val = open(args.val_data).readlines()
-    try:
-        for epoch in range(args.epochs):
-            train(epoch)
-    except KeyboardInterrupt:
-        print('-' * 89)
-        print('Exit from training early.')
-        data_val = open(args.test_data).readlines()
-        evaluate_start_time = time.time()
-        test_loss, acc = evaluate()
-        print('-' * 89)
-        fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
-        print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
-        print('-' * 89)
-        exit(0)
+        model = torch.load(args.test_model)
+        model = model.to(device)
+    data_val = open(args.test_data).readlines()
+    evaluate_start_time = time.time()
+    test_loss, acc = evaluate(data_val)
+    print('-' * 89)
+    fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
+    print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
+    print('-' * 89)
+    exit(0)

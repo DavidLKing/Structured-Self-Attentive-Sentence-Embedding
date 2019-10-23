@@ -51,6 +51,8 @@ def get_args():
                         help='report interval')
     parser.add_argument('--save', type=str, default='',
                         help='path to save the final model')
+    parser.add_argument('--test-model', type=str, default='',
+                        help='path to load model to test from')
     parser.add_argument('--dictionary', type=str, default='',
                         help='path to save the dictionary, for faster corpus loading')
     parser.add_argument('--word-vector', type=str, default='',
