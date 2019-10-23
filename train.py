@@ -44,7 +44,7 @@ def package(data, is_train=True):
         targets = torch.tensor(targets, dtype=torch.long)
     return dat.t(), targets
 
-
+# should take model and criterion as input as well
 def evaluate(data_val):
     """evaluate the model while training"""
     model.eval()  # turn on the eval() switch to disable dropout
@@ -155,6 +155,8 @@ if __name__ == '__main__':
     print('Begin to load the dictionary.')
     dictionary = Dictionary(path=args.dictionary)
 
+    criterion = nn.CrossEntropyLoss()
+
     if args.test_model == '':
         best_val_loss = None
         best_acc = None
@@ -183,7 +185,6 @@ if __name__ == '__main__':
                 I.data[i][j][j] = 1
         I = I.to(device)
 
-        criterion = nn.CrossEntropyLoss()
         if args.optimizer == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
         elif args.optimizer == 'SGD':
