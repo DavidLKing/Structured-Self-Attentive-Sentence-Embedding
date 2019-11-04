@@ -109,7 +109,7 @@ def train(epoch_number):
 #            print model.encoder.ws2.weight.grad.data
 #            exit()
     evaluate_start_time = time.time()
-    val_loss, acc = evaluate()
+    val_loss, acc = evaluate(data_val)
     print('-' * 89)
     fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
     print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
