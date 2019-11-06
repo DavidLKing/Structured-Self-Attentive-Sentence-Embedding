@@ -12,6 +12,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str, default='', help='output file')
     parser.add_argument('--labels', type=str, default='', help='label file')
     parser.add_argument('--dict', type=str, default='', help='dictionary file')
+    parser.add_argument('--label-data', action='store_true' help='to parse label file into json format')
     args = parser.parse_args()
     tokenizer = spacy.load('en_core_web_md')
     dictionary = Dictionary()
@@ -31,8 +32,13 @@ if __name__ == '__main__':
             if not line.startswith("#STARTDIALOGUE"):
                 # data: input<tab>label<tab>response<tab>interp<tab>correct<tab>...
                 item = line.strip().split('\t')
-                words = tokenizer(' '.join(item[0].split()))
-                labint = lab2int[item[1]]
+                if args.label_data:
+                    sent = item[1]
+                    labint = int(item[0])
+                else:
+                    sent = item[0]
+                    labint = lab2int[item[1]]
+                words = tokenizer(' '.join(sent.split()))
                 data = {
                     'label': labint,
                     'text': [x.text.lower() for x in words]

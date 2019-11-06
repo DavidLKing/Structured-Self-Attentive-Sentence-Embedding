@@ -21,7 +21,7 @@ class Dictionary(object):
         return len(self.idx2word)
 
 
-def get_args():
+def get_base_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--emsize', type=int, default=300,
                         help='size of word embeddings')
@@ -51,18 +51,10 @@ def get_args():
                         help='report interval')
     parser.add_argument('--save', type=str, default='',
                         help='path to save the final model')
-    parser.add_argument('--test-model', type=str, default='',
-                        help='path to load model to test from')
     parser.add_argument('--dictionary', type=str, default='',
                         help='path to save the dictionary, for faster corpus loading')
     parser.add_argument('--word-vector', type=str, default='',
                         help='path for pre-trained word vectors (e.g. GloVe), should be a PyTorch model.')
-    parser.add_argument('--train-data', type=str, default='',
-                        help='location of the training data, should be a json file')
-    parser.add_argument('--val-data', type=str, default='',
-                        help='location of the development data, should be a json file')
-    parser.add_argument('--test-data', type=str, default='',
-                        help='location of the test data, should be a json file')
     parser.add_argument('--batch-size', type=int, default=32,
                         help='batch size for training')
     parser.add_argument('--class-number', type=int, default=2,
@@ -71,5 +63,7 @@ def get_args():
                         help='type of optimizer')
     parser.add_argument('--penalization-coeff', type=float, default=1, 
                         help='the penalization coefficient')
-    return parser.parse_args()
+    parser.add_argument('--eval-on-test', action='store_true',
+                        help='evaluate test set after training')
+    return parser
 

@@ -1,7 +1,7 @@
 from __future__ import print_function
 from models import *
 
-from util import Dictionary, get_args
+from util import Dictionary, get_base_parser
 
 import torch
 import torch.nn as nn
@@ -44,8 +44,7 @@ def package(data, is_train=True):
         targets = torch.tensor(targets, dtype=torch.long)
     return dat.t(), targets
 
-# should take model and criterion as input as well
-def evaluate(data_val):
+def evaluate(model, data_val, criterion, args):
     """evaluate the model while training"""
     model.eval()  # turn on the eval() switch to disable dropout
     total_loss = 0
@@ -65,8 +64,7 @@ def evaluate(data_val):
     return avg_batch_loss, acc
 
 
-def train(epoch_number):
-    global best_val_loss, best_acc
+def train(model, data_train, criterion, optimizer, args):
     model.train()
     total_loss = 0
     total_pure_loss = 0  # without the penalization term
@@ -103,39 +101,31 @@ def train(epoch_number):
             total_loss = 0
             total_pure_loss = 0
             start_time = time.time()
-
+            
 #            for item in model.parameters():
 #                print item.size(), torch.sum(item.data ** 2), torch.sum(item.grad ** 2).data[0]
 #            print model.encoder.ws2.weight.grad.data
 #            exit()
-    evaluate_start_time = time.time()
-    val_loss, acc = evaluate(data_val)
-    print('-' * 89)
-    fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
-    print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
-    print('-' * 89)
-    # Save the model, if the validation loss is the best we've seen so far.
-    if not best_val_loss or val_loss < best_val_loss:
-        with open(args.save, 'wb') as f:
-            torch.save(model, f)
-        f.close()
-        best_val_loss = val_loss
-    else:  # if loss doesn't go down, divide the learning rate by 5.
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = param_group['lr'] * 0.2
-    if not best_acc or acc > best_acc:
-        with open(args.save[:-3]+'.best_acc.pt', 'wb') as f:
-            torch.save(model, f)
-        f.close()
-        best_acc = acc
-    with open(args.save[:-3]+'.epoch-{:02d}.pt'.format(epoch_number), 'wb') as f:
-        torch.save(model, f)
-    f.close()
+    return model
 
+def save(model, filename):
+    with open(filename, 'wb') as f:
+        torch.save(model, f)
+        f.close()
+    
 
 if __name__ == '__main__':
     # parse the arguments
-    args = get_args()
+    parser = get_base_parser()
+    parser.add_argument('--train-data', type=str, default='',
+                        help='location of the training data, should be a json file')
+    parser.add_argument('--val-data', type=str, default='',
+                        help='location of the development data, should be a json file')
+    parser.add_argument('--test-data', type=str, default='',
+                        help='location of the test data, should be a json file')
+    parser.add_argument('--test-model', type=str, default='',
+                        help='path to load model to test from')
+    args = parser.parse_args()
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
@@ -197,14 +187,32 @@ if __name__ == '__main__':
         data_val = open(args.val_data).readlines()
         try:
             for epoch in range(args.epochs):
-                train(epoch)
+                model = train(model, data_train, criterion, optimizer, args)
+                evaluate_start_time = time.time()
+                val_loss, acc = evaluate(model, data_val, criterion, args)
+                print('-' * 89)
+                fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
+                print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
+                print('-' * 89)
+                # Save the model, if the validation loss is the best we've seen so far.
+                if not best_val_loss or val_loss < best_val_loss:
+                    save(model, args.save)
+                    best_val_loss = val_loss
+                else:  # if loss doesn't go down, divide the learning rate by 5.
+                    for param_group in optimizer.param_groups:
+                        param_group['lr'] = param_group['lr'] * 0.2
+                if not best_acc or acc > best_acc:
+                    save(model, args.save[:-3]+'.best_acc.pt')
+                    best_acc = acc
+                save(model, args.save[:-3]+'.epoch-{:02d}.pt'.format(epoch))
+
             print('-' * 89)
         except KeyboardInterrupt:
             print('-' * 89)
             print('Exit from training early.')
             data_val = open(args.test_data).readlines()
             evaluate_start_time = time.time()
-            test_loss, acc = evaluate()
+            test_loss, acc = evaluate(model, data_val, criterion, args)
             print('-' * 89)
             fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
@@ -213,11 +221,13 @@ if __name__ == '__main__':
     else:
         model = torch.load(args.test_model)
         model = model.to(device)
-    data_val = open(args.test_data).readlines()
-    evaluate_start_time = time.time()
-    test_loss, acc = evaluate(data_val)
-    print('-' * 89)
-    fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
-    print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
-    print('-' * 89)
+
+    if args.eval_on_test:
+        data_val = open(args.test_data).readlines()
+        evaluate_start_time = time.time()
+        test_loss, acc = evaluate(model, data_val, criterion, args)
+        print('-' * 89)
+        fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
+        print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
+        print('-' * 89)
     exit(0)
