@@ -13,10 +13,6 @@ import time
 import random
 import os
 
-I = torch.zeros(args.batch_size, args.attention_hops, args.attention_hops)
-for i in range(args.batch_size):
-    for j in range(args.attention_hops):
-        I.data[i][j][j] = 1
 
 
 def Frobenius(mat):
@@ -74,6 +70,11 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
     total_loss = 0
     total_pure_loss = 0  # without the penalization term
     start_time = time.time()
+    I = torch.zeros(args.batch_size, args.attention_hops, args.attention_hops)
+    for i in range(args.batch_size):
+        for j in range(args.attention_hops):
+            I.data[i][j][j] = 1
+    I = I.to(device)
     for batch, i in enumerate(range(0, len(data_train), args.batch_size)):
         data, targets = package(data_train[i:i+args.batch_size], dictionary, is_train=True)
         data, targets = data.to(device), targets.to(device)
@@ -84,7 +85,6 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
 
         if attention is not None:  # add penalization term
             attentionT = torch.transpose(attention, 1, 2).contiguous()
-            I = I.to(device)
             extra_loss = Frobenius(torch.bmm(attention, attentionT) - I[:attention.size(0)])
             loss += args.penalization_coeff * extra_loss
         optimizer.zero_grad()
