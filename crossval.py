@@ -76,6 +76,9 @@ if __name__ == "__main__":
     fold_test_accs = []
     fold_test_losses = []
     for fold in range(args.xfolds):
+        print('-' * 84)
+        print('BEGIN FOLD ' + str(fold))
+        print('-' * 84)
         model = Classifier({
             'dropout': args.dropout,
             'ntoken': n_token,
@@ -104,13 +107,17 @@ if __name__ == "__main__":
         #get the right splits
         data_train, data_val, data_test = get_splits(all_data, fold, label_data, args)
         for epoch in range(args.epochs):
+            print('-' * 84)
+            print('BEGIN EPOCH ' + str(epoch))
+            print('-' * 84)
+
             model = train(model, data_train, dictionary, criterion, optimizer, device, args)
             evaluate_start_time = time.time()
             val_loss, acc = evaluate(model, data_val, dictionary, criterion, device, args)
-            print('-' * 89)
+            print('-' * 84)
             fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
-            print('-' * 89)
+            print('-' * 84)
             # Save the model, if the validation loss is the best we've seen so far.
             if not best_val_loss or val_loss < best_val_loss:
                 save(model, args.save)
@@ -124,7 +131,7 @@ if __name__ == "__main__":
                 best_model = copy.deepcopy(model)
             save(model, args.save[:-3]+'.epoch-{:02d}.pt'.format(epoch))
 
-        print('-' * 89)
+        print('-' * 84)
         fold_dev_losses += [best_val_loss]
         fold_dev_accs += [best_acc]
         
@@ -133,25 +140,25 @@ if __name__ == "__main__":
             test_loss, acc = evaluate(best_model, data_test, dictionary, criterion, device, args)
             fold_test_losses += [test_loss]
             fold_test_accs += [acc]
-            print('-' * 89)
+            print('-' * 84)
             fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
-            print('-' * 89)
+            print('-' * 84)
 
-    print('-' * 89)
+    print('-' * 84)
     fmt = '| dev average | test loss (pure) {:5.4f} | Acc {:8.4f}'
     avg_dev_loss = sum(fold_dev_losses)/float(args.xfolds)
     avg_dev_acc = sum(fold_dev_accs)/float(args.xfolds)
     print(fmt.format(avg_dev_loss, avg_dev_acc))
-    print('-' * 89)
+    print('-' * 84)
 
     if args.eval_on_test:
-        print('-' * 89)
+        print('-' * 84)
         fmt = '| test average | test loss (pure) {:5.4f} | Acc {:8.4f}'
         avg_test_loss = sum(fold_test_losses)/float(args.xfolds)
         avg_test_acc = sum(fold_test_accs)/float(args.xfolds)
         print(fmt.format(avg_test_loss, avg_test_acc))
-        print('-' * 89)
+        print('-' * 84)
 
     
     exit(0)
