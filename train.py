@@ -44,7 +44,7 @@ def package(data, dictionary, is_train=True):
         targets = torch.tensor(targets, dtype=torch.long)
     return dat.t(), targets
 
-def evaluate(model, data_val, dictionary, criterion, args):
+def evaluate(model, data_val, dictionary, criterion, device, args):
     """evaluate the model while training"""
     model.eval()  # turn on the eval() switch to disable dropout
     total_loss = 0
@@ -64,7 +64,7 @@ def evaluate(model, data_val, dictionary, criterion, args):
     return avg_batch_loss, acc
 
 
-def train(model, data_train, dictionary, criterion, optimizer, args):
+def train(model, data_train, dictionary, criterion, optimizer, device, args):
     model.train()
     total_loss = 0
     total_pure_loss = 0  # without the penalization term
@@ -187,9 +187,9 @@ if __name__ == '__main__':
         data_val = open(args.val_data).readlines()
         try:
             for epoch in range(args.epochs):
-                model = train(model, data_train, dictionary, criterion, optimizer, args)
+                model = train(model, data_train, dictionary, criterion, optimizer, device, args)
                 evaluate_start_time = time.time()
-                val_loss, acc = evaluate(model, data_val, dictionary, criterion, args)
+                val_loss, acc = evaluate(model, data_val, dictionary, criterion, device, args)
                 print('-' * 89)
                 fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
                 print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
@@ -212,7 +212,7 @@ if __name__ == '__main__':
             print('Exit from training early.')
             data_val = open(args.test_data).readlines()
             evaluate_start_time = time.time()
-            test_loss, acc = evaluate(model, data_val, dictionary, criterion, args)
+            test_loss, acc = evaluate(model, data_val, dictionary, criterion, device, args)
             print('-' * 89)
             fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     if args.eval_on_test:
         data_val = open(args.test_data).readlines()
         evaluate_start_time = time.time()
-        test_loss, acc = evaluate(model, data_val, dictionary, criterion, args)
+        test_loss, acc = evaluate(model, data_val, dictionary, criterion, device, args)
         print('-' * 89)
         fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
         print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))

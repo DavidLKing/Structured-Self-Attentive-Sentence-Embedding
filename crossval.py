@@ -104,9 +104,9 @@ if __name__ == "__main__":
         #get the right splits
         data_train, data_val, data_test = get_splits(all_data, fold, label_data, args)
         for epoch in range(args.epochs):
-            model = train(model, data_train, dictionary, criterion, optimizer, args)
+            model = train(model, data_train, dictionary, criterion, optimizer, device, args)
             evaluate_start_time = time.time()
-            val_loss, acc = evaluate(model, data_val, dictionary, criterion, args)
+            val_loss, acc = evaluate(model, data_val, dictionary, criterion, device, args)
             print('-' * 89)
             fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
@@ -130,7 +130,7 @@ if __name__ == "__main__":
         
         if args.eval_on_test:
             evaluate_start_time = time.time()
-            test_loss, acc = evaluate(best_model, data_test, dictionary, criterion, args)
+            test_loss, acc = evaluate(best_model, data_test, dictionary, criterion, device, args)
             fold_test_losses += [test_loss]
             fold_test_accs += [acc]
             print('-' * 89)
