@@ -62,11 +62,11 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
     
     print(args)
-    I = torch.zeros(args.batch_size, args.attention_hops, args.attention_hops)
-    for i in range(args.batch_size):
-        for j in range(args.attention_hops):
-            I.data[i][j][j] = 1
-    I = I.to(device)
+#    I = torch.zeros(args.batch_size, args.attention_hops, args.attention_hops)
+#    for i in range(args.batch_size):
+#        for j in range(args.attention_hops):
+#            I.data[i][j][j] = 1
+#    I = I.to(device)
 
     print('Begin to load data.')
     all_data = open(args.data).readlines()
