@@ -12,7 +12,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str, default='', help='output file')
     parser.add_argument('--labels', type=str, default='', help='label file')
     parser.add_argument('--dict', type=str, default='', help='dictionary file')
-    parser.add_argument('--label-data', action='store_true' help='to parse label file into json format')
+    parser.add_argument('--label-data', action='store_true', help='to parse label file into json format')
     args = parser.parse_args()
     tokenizer = spacy.load('en_core_web_md')
     dictionary = Dictionary()

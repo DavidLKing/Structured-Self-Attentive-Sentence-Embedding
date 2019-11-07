@@ -68,13 +68,6 @@ if __name__ == "__main__":
             I.data[i][j][j] = 1
     I = I.to(device)
 
-    if args.optimizer == 'Adam':
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
-    elif args.optimizer == 'SGD':
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=0.01)
-    else:
-        raise Exception('For other optimizers, please add it yourself. '
-                        'supported ones are: SGD and Adam.')
     print('Begin to load data.')
     all_data = open(args.data).readlines()
     label_data = open(args.label_data).readlines()
@@ -98,6 +91,13 @@ if __name__ == "__main__":
             'class-number': args.class_number
         })
         model = model.to(device)
+        if args.optimizer == 'Adam':
+            optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
+        elif args.optimizer == 'SGD':
+            optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=0.01)
+        else:
+            raise Exception('For other optimizers, please add it yourself. '
+                            'supported ones are: SGD and Adam.')
         best_val_loss = None
         best_acc = None
         best_model = None
