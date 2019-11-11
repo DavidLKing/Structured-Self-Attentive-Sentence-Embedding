@@ -59,6 +59,8 @@ def get_base_parser():
                         help='path for pre-trained word vectors (e.g. GloVe), should be a PyTorch model.')
     parser.add_argument('--batch-size', type=int, default=32,
                         help='batch size for training')
+    parser.add_argument('--shuffle', action='store_true',
+                        help='re-shuffle training data at every epoch')
     parser.add_argument('--class-number', type=int, default=2,
                         help='number of classes')
     parser.add_argument('--optimizer', type=str, default='Adam',
