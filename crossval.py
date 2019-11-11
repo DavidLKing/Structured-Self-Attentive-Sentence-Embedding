@@ -79,7 +79,7 @@ if __name__ == "__main__":
         print('-' * 84)
         print('BEGIN FOLD ' + str(fold))
         print('-' * 84)
-        model = Classifier({
+        model = BottleneckClassifier({
             'dropout': args.dropout,
             'ntoken': n_token,
             'nlayers': args.nlayers,
@@ -89,6 +89,7 @@ if __name__ == "__main__":
             'attention-unit': args.attention_unit,
             'attention-hops': args.attention_hops,
             'nfc': args.nfc,
+            'ncat': args.ncat,
             'dictionary': dictionary,
             'word-vector': args.word_vector,
             'class-number': args.class_number

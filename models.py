@@ -80,6 +80,7 @@ class SelfAttentiveEncoder(nn.Module):
         outp = self.bilstm.forward(inp, hidden)[0]
         size = outp.size()  # [bsz, len, nhid]
         compressed_embeddings = outp.view(-1, size[2])  # [bsz*len, nhid*2]
+        # only need this to penalize <pad>s
         transformed_inp = torch.transpose(inp, 0, 1).contiguous()  # [bsz, len]
         transformed_inp = transformed_inp.view(size[0], 1, size[1])  # [bsz, 1, len]
         concatenated_inp = [transformed_inp for i in range(self.attention_hops)]
@@ -93,7 +94,7 @@ class SelfAttentiveEncoder(nn.Module):
             # [bsz, hop, len] + [bsz, hop, len]
         alphas = self.softmax(penalized_alphas.view(-1, size[1]))  # [bsz*hop, len]
         alphas = alphas.view(size[0], self.attention_hops, size[1])  # [bsz, hop, len]
-        return torch.bmm(alphas, outp), alphas
+        return torch.bmm(alphas, outp), alphas # [bsz, hop, nhid], [bsz, hop, len]
 
     def init_hidden(self, bsz):
         return self.bilstm.init_hidden(bsz)
@@ -124,13 +125,53 @@ class Classifier(nn.Module):
         self.pred.bias.data.fill_(0)
 
     def forward(self, inp, hidden):
-        outp, attention = self.encoder.forward(inp, hidden)
-        outp = outp.view(outp.size(0), -1)
-        fc = self.tanh(self.fc(self.drop(outp)))
-        pred = self.pred(self.drop(fc))
+        outp, attention = self.encoder.forward(inp, hidden) # [bsz, hop, nhid*2], [bsz, hop, len]
+        outp = outp.view(outp.size(0), -1) # [bsz, hop*nhid*2]
+        fc = self.tanh(self.fc(self.drop(outp))) # [bsz, nfc]
+        pred = self.pred(self.drop(fc)) # [bsz, ncls]
         if type(self.encoder) == BiLSTM:
             attention = None
-        return pred, attention
+        return pred, attention, None
+
+    def init_hidden(self, bsz):
+        return self.encoder.init_hidden(bsz)
+
+    def encode(self, inp, hidden):
+        return self.encoder.forward(inp, hidden)[0]
+
+
+class BottleneckClassifier(nn.Module):
+
+    def __init__(self, config):
+        super(BottleneckClassifier, self).__init__()
+        self.hops = config['attention-hops']
+        self.C = config['class-number']
+        self.ncat = config['ncat']
+        self.nhid = config['nhid']
+        self.encoder = SelfAttentiveEncoder(config)
+        self.bnWs = [nn.Linear(self.nhid*2, self.ncat) for hop in range(self.hops)]
+        self.softmax = nn.Softmax()
+        #self.fc = nn.Linear(config['ncat'] * config['attention-hops'], config['nfc'])
+        self.drop = nn.Dropout(config['dropout'])
+        self.tanh = nn.Tanh()
+        self.pred = nn.Linear(self.ncat * self.hops, self.C)
+        self.dictionary = config['dictionary']
+#        self.init_weights()
+
+    def init_weights(self, init_range=0.1):
+        [bnW.weight.data.uniform_(-init_range, init_range) for bnW in self.bnWs]
+        [bnW.bias.data.fill_(0) for bnW in self.bnWs]
+        self.pred.weight.data.uniform_(-init_range, init_range)
+        self.pred.bias.data.fill_(0)
+
+    def forward(self, inp, hidden):
+        outp, attention = self.encoder.forward(inp, hidden) # [bsz, hop, nhid*2], [bsz, hop, len]
+        outps = [self.drop(outp.narrow(1, i, 1)) for i in range(self.hops)] #[[bsz, 1, nhid*2]]
+        intermediate = [self.softmax(self.tanh(self.bnWs[i](outps[i]))) for i in self.hops] # [[bsz, 1, ncat]]
+        intermediate = torch.cat(intermediate, 1) # [bsz, hop, ncat]
+        #fc = self.tanh(self.fc(self.drop(outp))) # [bsz, nfc]
+        pred = self.pred(intermediate.view(intermediate.size(0), -1)) # [bsz, ncls]
+        return pred, attention, intermediate
 
     def init_hidden(self, bsz):
         return self.encoder.init_hidden(bsz)

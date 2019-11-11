@@ -55,7 +55,7 @@ def evaluate(model, data_val, dictionary, criterion, device, args):
         data, targets = package(data_val[i:last], dictionary, is_train=False)
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
-        output, attention = model.forward(data, hidden)
+        output, attention, intermediate = model.forward(data, hidden)
         output_flat = output.view(data.size(1), -1)
         total_loss += criterion(output_flat, targets).item()
         prediction = torch.max(output_flat, 1)[1]
@@ -79,7 +79,7 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
         data, targets = package(data_train[i:i+args.batch_size], dictionary, is_train=True)
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
-        output, attention = model.forward(data, hidden)
+        output, attention, intermediate = model.forward(data, hidden)
         loss = criterion(output.view(data.size(1), -1), targets)
         total_pure_loss += loss.item()
 

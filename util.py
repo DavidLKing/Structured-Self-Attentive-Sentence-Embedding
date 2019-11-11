@@ -39,6 +39,8 @@ def get_base_parser():
                         help='clip to prevent the too large grad in LSTM')
     parser.add_argument('--nfc', type=int, default=512,
                         help='hidden (fully connected) layer size for classifier MLP')
+    parser.add_argument('--ncat', type=int, default=8,
+                        help='number of categories for each random variable in the sparse intermediate representation')
     parser.add_argument('--lr', type=float, default=.001,
                         help='initial learning rate')
     parser.add_argument('--epochs', type=int, default=40,
