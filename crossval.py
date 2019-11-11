@@ -113,7 +113,7 @@ if __name__ == "__main__":
             print('-' * 84)
             print('BEGIN EPOCH ' + str(epoch))
             print('-' * 84)
-            if shuffle:
+            if args.shuffle:
                 random.shuffle(data_train)
             model = train(model, data_train, dictionary, criterion, optimizer, device, args)
             evaluate_start_time = time.time()
