@@ -95,6 +95,8 @@ if __name__ == "__main__":
             'class-number': args.class_number
         })
         model = model.to(device)
+        print("bottleneck mtx device:")
+        print(model.bnWs[0].device)
         if args.optimizer == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
         elif args.optimizer == 'SGD':
