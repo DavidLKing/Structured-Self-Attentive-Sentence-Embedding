@@ -149,7 +149,7 @@ class BottleneckClassifier(nn.Module):
         self.ncat = config['ncat']
         self.nhid = config['nhid']
         self.encoder = SelfAttentiveEncoder(config)
-        self.bnWs = [nn.Linear(self.nhid*2, self.ncat) for hop in range(self.hops)]
+        self.bnWs = nn.ModuleList([nn.Linear(self.nhid*2, self.ncat) for hop in range(self.hops)])
         self.softmax = nn.Softmax()
         #self.fc = nn.Linear(config['ncat'] * config['attention-hops'], config['nfc'])
         self.drop = nn.Dropout(config['dropout'])
