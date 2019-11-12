@@ -148,29 +148,32 @@ class BottleneckClassifier(nn.Module):
         self.C = config['class-number']
         self.ncat = config['ncat']
         self.nhid = config['nhid']
+        self.nfc = config['nfc']
         self.encoder = SelfAttentiveEncoder(config)
         self.bnWs = nn.ModuleList([nn.Linear(self.nhid*2, self.ncat) for hop in range(self.hops)])
-        self.softmax = nn.Softmax()
-        #self.fc = nn.Linear(config['ncat'] * config['attention-hops'], config['nfc'])
+        self.softmax = nn.Softmax(dim = 2)
+        self.fc = nn.Linear(self.ncat * self.hops, self.nfc)
         self.drop = nn.Dropout(config['dropout'])
         self.tanh = nn.Tanh()
-        self.pred = nn.Linear(self.ncat * self.hops, self.C)
+        self.pred = nn.Linear(self.nfc, self.C)
         self.dictionary = config['dictionary']
 #        self.init_weights()
 
     def init_weights(self, init_range=0.1):
         [bnW.weight.data.uniform_(-init_range, init_range) for bnW in self.bnWs]
         [bnW.bias.data.fill_(0) for bnW in self.bnWs]
+        self.fc.weight.data.uniform_(-init_range, init_range)
+        self.fc.bias.data.fill_(0)
         self.pred.weight.data.uniform_(-init_range, init_range)
         self.pred.bias.data.fill_(0)
 
     def forward(self, inp, hidden):
         outp, attention = self.encoder.forward(inp, hidden) # [bsz, hop, nhid*2], [bsz, hop, len]
         outps = [self.drop(outp.narrow(1, i, 1)) for i in range(self.hops)] #[[bsz, 1, nhid*2]]
-        intermediate = [self.tanh(self.bnWs[i](outps[i])) for i in range(self.hops)] # [[bsz, 1, ncat]]
+        intermediate = [self.softmax(self.tanh(self.bnWs[i](outps[i]))) for i in range(self.hops)] # [[bsz, 1, ncat]]
         intermediate = torch.cat(intermediate, 1) # [bsz, hop, ncat]
-        #fc = self.tanh(self.fc(self.drop(outp))) # [bsz, nfc]
-        pred = self.pred(intermediate.view(intermediate.size(0), -1)) # [bsz, ncls]
+        fc = self.tanh(self.fc(intermediate.view(intermediate.size(0),-1))) # [bsz, nfc]
+        pred = self.pred(self.drop(fc)) # [bsz, ncls]
         return pred, attention, intermediate
 
     def init_hidden(self, bsz):
