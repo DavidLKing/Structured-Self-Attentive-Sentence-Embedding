@@ -95,8 +95,8 @@ if __name__ == "__main__":
             'class-number': args.class_number
         })
         model = model.to(device)
-        print("bottleneck mtx device:")
-        print(model.bnWs[0].weight.device)
+        #print("bottleneck mtx device:")
+        #print(model.bnWs[0].weight.device)
         if args.optimizer == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
         elif args.optimizer == 'SGD':
@@ -127,8 +127,8 @@ if __name__ == "__main__":
                 save(model, args.save)
                 best_val_loss = val_loss
             else:  # if loss doesn't go down, divide the learning rate by 5.
-                for param_group in optimizer.param_groups:
-                    param_group['lr'] = param_group['lr'] * 0.2
+                #for param_group in optimizer.param_groups:
+                #    param_group['lr'] = param_group['lr'] * 0.2
             if not best_acc or acc > best_acc:
                 save(model, args.save[:-3]+'.best_acc.pt')
                 best_acc = acc
