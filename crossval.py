@@ -126,7 +126,7 @@ if __name__ == "__main__":
             if not best_val_loss or val_loss < best_val_loss:
                 save(model, args.save)
                 best_val_loss = val_loss
-            else:  # if loss doesn't go down, divide the learning rate by 5.
+            #else:  # if loss doesn't go down, divide the learning rate by 5.
                 #for param_group in optimizer.param_groups:
                 #    param_group['lr'] = param_group['lr'] * 0.2
             if not best_acc or acc > best_acc:
