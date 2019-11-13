@@ -65,11 +65,11 @@ def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
             for i in range(len(intoks)):
                 inputstr = " ".join(json.loads(intoks[i])["text"])
                 if intermediate is not None:
-                    inter = intermediate[i]
+                    inter = str(intermediate[i])
                 else:
                     inter = "NA"
-                logstr = "\t".join((inputstr, prediction[i].item(),
-                                    targets[i].item(), inter))
+                logstr = "\t".join((inputstr, str(prediction[i].item()),
+                                    str(targets[i].item()), inter))
                 outlog.write(logstr + "\n")
     avg_batch_loss = total_loss / (len(data_val) // args.batch_size)
     acc = total_correct / len(data_val)
