@@ -45,14 +45,15 @@ def package(data, dictionary, is_train=True):
         targets = torch.tensor(targets, dtype=torch.long)
     return dat.t(), targets
 
-def evaluate(model, data_val, dictionary, criterion, device, args):
+def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
     """evaluate the model while training"""
     model.eval()  # turn on the eval() switch to disable dropout
     total_loss = 0
     total_correct = 0
     for batch, i in enumerate(range(0, len(data_val), args.batch_size)):
         last = min(len(data_val), i+args.batch_size)
-        data, targets = package(data_val[i:last], dictionary, is_train=False)
+        intoks = data_val[i:last]
+        data, targets = package(intoks, dictionary, is_train=False)
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
         output, attention, intermediate = model.forward(data, hidden)
@@ -60,6 +61,16 @@ def evaluate(model, data_val, dictionary, criterion, device, args):
         total_loss += criterion(output_flat, targets).item()
         prediction = torch.max(output_flat, 1)[1]
         total_correct += torch.sum((prediction == targets).float()).item()
+        if outlog is not None:
+            for i in range(len(intoks)):
+                inputstr = " ".join(json.loads(intoks[i])["text"])
+                if intermediate is not None:
+                    inter = intermediate[i]
+                else:
+                    inter = "NA"
+                logstr = "\t".join((inputstr, prediction[i].item(),
+                                    targets[i].item(), inter))
+                outlog.write(logstr + "\n")
     avg_batch_loss = total_loss / (len(data_val) // args.batch_size)
     acc = total_correct / len(data_val)
     return avg_batch_loss, acc

@@ -75,6 +75,7 @@ if __name__ == "__main__":
     fold_dev_accs = []
     fold_test_accs = []
     fold_test_losses = []
+    logfile = open(args.out_log, "w")
     for fold in range(args.xfolds):
         print('-' * 84)
         print('BEGIN FOLD ' + str(fold))
@@ -99,8 +100,9 @@ if __name__ == "__main__":
         #print(model.bnWs[0].weight.device)
         if args.optimizer == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
-        elif args.optimizer == 'SGD':
-            optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=0.01)
+        # remove SGD since disabling learning rate adjustments in training loop
+        #elif args.optimizer == 'SGD':
+        #    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=0.01)
         else:
             raise Exception('For other optimizers, please add it yourself. '
                             'supported ones are: SGD and Adam.')
@@ -141,7 +143,7 @@ if __name__ == "__main__":
         
         if args.eval_on_test:
             evaluate_start_time = time.time()
-            test_loss, acc = evaluate(best_model, data_test, dictionary, criterion, device, args)
+            test_loss, acc = evaluate(best_model, data_test, dictionary, criterion, device, args, outlog=logfile)
             fold_test_losses += [test_loss]
             fold_test_accs += [acc]
             print('-' * 84)
@@ -164,6 +166,6 @@ if __name__ == "__main__":
         print(fmt.format(avg_test_loss, avg_test_acc))
         print('-' * 84)
 
-    
+    logfile.close()
     exit(0)
     

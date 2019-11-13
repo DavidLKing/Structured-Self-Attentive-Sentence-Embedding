@@ -69,5 +69,8 @@ def get_base_parser():
                         help='the penalization coefficient')
     parser.add_argument('--eval-on-test', action='store_true',
                         help='evaluate test set after training')
+    parser.add_argument('--out-log', type=str, default='choices.csv',
+                        help='file to store test output of the model')
+    
     return parser
 
