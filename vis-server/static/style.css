@@ -1,0 +1,84 @@
+.head1-1 {
+    background-color: rgba(51,204,204,0.2)
+}
+.head1-2 {
+    background-color: rgba(51,204,204,0.4)
+}
+.head1-3 {
+    background-color: rgba(51,204,204,0.6)
+}
+.head1-4 {
+    background-color: rgba(51,204,204,0.8)
+}
+.head2-1 {
+    background-color: rgba(51,102,255,0.2)
+}
+.head2-2 {
+    background-color: rgba(51,102,255,0.4)
+}
+.head2-3 {
+    background-color: rgba(51,102,255,0.6)
+}
+.head2-4 {
+    background-color: rgba(51,102,255,0.8)
+}
+.head3-1 {
+    background-color: rgba(255,0,255,0.2)
+}
+.head3-2 {
+    background-color: rgba(255,0,255,0.4)
+}
+.head3-3 {
+    background-color: rgba(255,0,255,0.6)
+}
+.head3-4 {
+    background-color: rgba(255,0,255,0.8)
+}
+.head4-1 {
+    background-color: rgba(255,80,80,0.2)
+}
+.head4-2 {
+    background-color: rgba(255,80,80,0.4)
+}
+.head4-3 {
+    background-color: rgba(255,80,80,0.6)
+}
+.head4-4 {
+    background-color: rgba(255,80,80,0.8)
+}
+.head5-1 {
+    background-color: rgba(255,255,0,0.2)
+}
+.head5-2 {
+    background-color: rgba(255,255,0,0.4)
+}
+.head5-3 {
+    background-color: rgba(255,255,0,0.6)
+}
+.head5-4 {
+    background-color: rgba(255,255,0,0.8)
+}
+.head6-1 {
+    background-color: rgba(51,204,51,0.2)
+}
+.head6-2 {
+    background-color: rgba(51,204,51,0.4)
+}
+.head6-3 {
+    background-color: rgba(51,204,51,0.6)
+}
+.head6-4 {
+    background-color: rgba(51,204,51,0.8)
+}
+table.intermediate{
+    border-collapse: collapse;
+}
+
+td.intermediate {
+    height: 6px;
+    width: 6px;
+    border-style: solid;
+    border-color: gray;
+    border-width: 1px;
+    padding: 0px;
+}

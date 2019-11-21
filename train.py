@@ -63,12 +63,14 @@ def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
         total_correct += torch.sum((prediction == targets).float()).item()
         if outlog is not None:
             for i in range(len(intoks)):
-                in_words = json.loads(intoks[i])["text"])
-                atts = ["|".join(attention[i,:,k].tolist()) for k in range(len(in_words))]
+                in_words = json.loads(intoks[i])["text"]
+                atts = ["|".join([str(a) for a in attention[i,:,k].tolist()])
+                        for k in range(len(in_words))]
                 in_atts = [a+"|"+b for a,b in zip(in_words, atts)]
                 inputstr = " ".join(in_atts)
                 if intermediate is not None:
-                    vbs = [str(intermediate[i,j,:].data) for j in intermediate.size(1)]
+                    vbs = [" ".join([str(v) for v in intermediate[i,j,:].tolist()])
+                           for j in range(intermediate.size(1))]
                     inter = "|".join(vbs)
                 else:
                     inter = "NA"

@@ -2,3 +2,5 @@
 *.log
 
 *~
+
+vis-server/choices.*

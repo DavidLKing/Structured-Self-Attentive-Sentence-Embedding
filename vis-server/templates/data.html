@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Attention visualization</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <ul id="navigation">
+      <li><a href="{{ nav['last_page'] }}">Previous</a></li>
+      <li><a href="{{ nav['next_page'] }}">Next</a></li>
+    </ul>
+    <table style="width:100%">
+      <tr>
+	<th> Label </th>
+	<th> Predicted </th>
+	<th> Correct </th>
+	<th> Sentence </th>
+	<th> Intermediate </th>
+      </tr>
+      {% for i in range(sents|length) %}
+      <tr>
+	<td> {{labels[i]}} </td>
+	<td> {{preds[i]}} </td>
+	<td> {{corrects[i]}} </td>
+	<td>
+	{% for tok in sents[i] %}
+	  {% for c in range(tok|length - 1) %}
+	    <span style="background-color:rgba({{colors[c]}},{{tok[c+1]}})">
+	  {% endfor %} {{ tok[0] }}
+	  {% for c in tok[1:] %}
+	    </span>
+	  {% endfor %}
+	{% endfor %}
+	</td>
+	<td>
+	  <table class="intermediate">
+	    {% for j in range(reps[i]|length) %}
+	    <tr>
+	      {% for val in reps[i][j] %}
+	      <td class="intermediate" style="background-color:rgba({{colors[j]}},{{val}})" />
+	      {% endfor %}
+	    </tr>
+	    {% endfor %}
+	  </table>
+	</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </body>
+  </html>
