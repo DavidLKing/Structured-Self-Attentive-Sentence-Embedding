@@ -68,7 +68,9 @@ def get_base_parser():
     parser.add_argument('--optimizer', type=str, default='Adam',
                         help='type of optimizer')
     parser.add_argument('--penalization-coeff', type=float, default=1, 
-                        help='the penalization coefficient')
+                        help='the attention orthogonality penalization coefficient')
+    parser.add_argument('--sparsity-coeff', type=float, default=1, 
+                        help='the intermediate rep sparsity penalization coefficient')
     parser.add_argument('--eval-on-test', action='store_true',
                         help='evaluate test set after training')
     parser.add_argument('--out-log', type=str, default='choices.csv',
