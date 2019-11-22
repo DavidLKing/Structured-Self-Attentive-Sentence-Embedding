@@ -76,6 +76,10 @@ if __name__ == "__main__":
     fold_test_accs = []
     fold_test_losses = []
     logfile = open(args.out_log, "w")
+    if args.sparsity == 'softmax':
+        intrep = 'softmax'
+    elif args.sparsity == 'L1':
+        intrep = 'sigmoid'
     for fold in range(args.xfolds):
         print('-' * 84)
         print('BEGIN FOLD ' + str(fold))
@@ -91,6 +95,7 @@ if __name__ == "__main__":
             'attention-hops': args.attention_hops,
             'nfc': args.nfc,
             'ncat': args.ncat,
+            'intrep': intrep,
             'dictionary': dictionary,
             'word-vector': args.word_vector,
             'class-number': args.class_number

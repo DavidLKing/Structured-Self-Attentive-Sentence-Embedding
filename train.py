@@ -104,6 +104,10 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
             attentionT = torch.transpose(attention, 1, 2).contiguous()
             extra_loss = Frobenius(torch.bmm(attention, attentionT) - I[:attention.size(0)])
             loss += args.penalization_coeff * extra_loss
+        if args.sparsity == 'L1':
+            #do the thing
+            sparsity_penalty = torch.mean(torch.mean(intermediate.norm(p=1, dim=2), dim=1)) # TODO: -1?
+            loss += args.sparsity_coeff * sparsity_penalty.item()
         optimizer.zero_grad()
         loss.backward()
 

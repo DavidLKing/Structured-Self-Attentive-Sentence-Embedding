@@ -150,11 +150,14 @@ class BottleneckClassifier(nn.Module):
         self.nhid = config['nhid']
         self.nfc = config['nfc']
         self.encoder = SelfAttentiveEncoder(config)
+        self.tanh = nn.Tanh()
         self.bnWs = nn.ModuleList([nn.Linear(self.nhid*2, self.ncat) for hop in range(self.hops)])
-        self.softmax = nn.Softmax(dim = 2)
+        if config['intrep'] == 'softmax':
+            self.intact = nn.Sequential(nn.Tanh(),nn.Softmax(dim = 2))
+        elif config['intrep'] == 'sigmoid':
+            self.intact = nn.Sigmoid()
         self.fc = nn.Linear(self.ncat * self.hops, self.nfc)
         self.drop = nn.Dropout(config['dropout'])
-        self.tanh = nn.Tanh()
         self.pred = nn.Linear(self.nfc, self.C)
         self.dictionary = config['dictionary']
 #        self.init_weights()
@@ -170,7 +173,8 @@ class BottleneckClassifier(nn.Module):
     def forward(self, inp, hidden):
         outp, attention = self.encoder.forward(inp, hidden) # [bsz, hop, nhid*2], [bsz, hop, len]
         outps = [self.drop(outp.narrow(1, i, 1)) for i in range(self.hops)] #[[bsz, 1, nhid*2]]
-        intermediate = [self.softmax(self.tanh(self.bnWs[i](outps[i]))) for i in range(self.hops)] # [[bsz, 1, ncat]]
+        preint = [self.bnWs[i](outps[i]))) for i in range(self.hops)] # [[bsz, 1, ncat]]
+        intermediate = [self.intact(preint[i]) for i in range(self.hops)]
         intermediate = torch.cat(intermediate, 1) # [bsz, hop, ncat]
         fc = self.tanh(self.fc(intermediate.view(intermediate.size(0),-1))) # [bsz, nfc]
         pred = self.pred(self.drop(fc)) # [bsz, ncls]
