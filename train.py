@@ -6,6 +6,7 @@ from util import Dictionary, get_base_parser
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 #from torch.autograd import Variable
 
 import json
@@ -105,9 +106,28 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
             extra_loss = Frobenius(torch.bmm(attention, attentionT) - I[:attention.size(0)])
             loss += args.penalization_coeff * extra_loss
         if args.sparsity == 'L1':
-            #do the thing
             sparsity_penalty = torch.mean(torch.mean(intermediate.norm(p=1, dim=2), dim=1)) # TODO: -1?
             loss += args.sparsity_coeff * sparsity_penalty.item()
+        elif args.sparsity == 'entropy':
+            batch_sums = torch.sum(intermediate, dim=0)
+            batch_head_ps = F.normalize(batch_sums, p=1, dim=1)
+            batch_head_logps = torch.log(batch_head_ps)
+            batch_head_plogp = batch_head_ps * batch_head_logps
+            avg_neg_entropy = -1.0 * torch.mean(torch.sum(batch_head_plogp, dim=1))
+            maxent = torch.log(intermediate.size(2).float()).item()
+            loss += args.sparsity_coeff * (avg_neg_entropy.item() + maxent)
+        elif args.sparsity == 'similarity':
+            # maximize similarity of representations *across a batch*,
+            # independently for each head
+            # first switch batch dimension to 1, and head dim to 0.
+            int_normed = F.normalize(intermediate, p=1, dim=2)
+            head_first = int_normed.transpose(0,1)
+            head_firstT = head_first.transpose(1,2)
+            # calculate "batch" (head) average frobenius norm as penalty (bonus)
+            head_avg_fro = Frobenius(torch.bmm(head_first, head_firstT))
+            max_fro = Frobenius(torch.ones_like(head_avg_fro))
+            loss += args.sparsity_coeff * (max_fro - head_avg_fro)
+            
         optimizer.zero_grad()
         loss.backward()
 

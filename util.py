@@ -42,7 +42,7 @@ def get_base_parser():
     parser.add_argument('--ncat', type=int, default=8,
                         help='number of categories for each random variable in the sparse intermediate representation')
     parser.add_argument('--sparsity', type=str, default='softmax',
-                        help='strategy for inducing sparsity of intermediate representation; softmax or L1')
+                        help='strategy for inducing sparsity of intermediate representation; softmax, L1, entropy, or similarity')
     parser.add_argument('--lr', type=float, default=.001,
                         help='initial learning rate')
     parser.add_argument('--epochs', type=int, default=40,

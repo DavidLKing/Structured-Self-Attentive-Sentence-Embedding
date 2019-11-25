@@ -173,7 +173,7 @@ class BottleneckClassifier(nn.Module):
     def forward(self, inp, hidden):
         outp, attention = self.encoder.forward(inp, hidden) # [bsz, hop, nhid*2], [bsz, hop, len]
         outps = [self.drop(outp.narrow(1, i, 1)) for i in range(self.hops)] #[[bsz, 1, nhid*2]]
-        preint = [self.bnWs[i](outps[i]))) for i in range(self.hops)] # [[bsz, 1, ncat]]
+        preint = [self.bnWs[i](outps[i]) for i in range(self.hops)] # [[bsz, 1, ncat]]
         intermediate = [self.intact(preint[i]) for i in range(self.hops)]
         intermediate = torch.cat(intermediate, 1) # [bsz, hop, ncat]
         fc = self.tanh(self.fc(intermediate.view(intermediate.size(0),-1))) # [bsz, nfc]
