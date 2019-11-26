@@ -78,7 +78,7 @@ if __name__ == "__main__":
     logfile = open(args.out_log, "w")
     if args.sparsity == 'softmax':
         intrep = 'softmax'
-    elif args.sparsity == 'L1':
+    elif args.sparsity in ['L1', 'entropy', 'similarity']:
         intrep = 'sigmoid'
     for fold in range(args.xfolds):
         print('-' * 84)

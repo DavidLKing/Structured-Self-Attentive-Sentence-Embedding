@@ -114,7 +114,7 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
             batch_head_logps = torch.log(batch_head_ps)
             batch_head_plogp = batch_head_ps * batch_head_logps
             avg_neg_entropy = -1.0 * torch.mean(torch.sum(batch_head_plogp, dim=1))
-            maxent = torch.log(intermediate.size(2).float()).item()
+            maxent = torch.log(torch.tensor(intermediate.size(2)).double()).item()
             loss += args.sparsity_coeff * (avg_neg_entropy.item() + maxent)
         elif args.sparsity == 'similarity':
             # maximize similarity of representations *across a batch*,
@@ -124,8 +124,9 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
             head_first = int_normed.transpose(0,1)
             head_firstT = head_first.transpose(1,2)
             # calculate "batch" (head) average frobenius norm as penalty (bonus)
-            head_avg_fro = Frobenius(torch.bmm(head_first, head_firstT))
-            max_fro = Frobenius(torch.ones_like(head_avg_fro))
+            sim = torch.bmm(head_first, head_firstT)
+            head_avg_fro = Frobenius(sim)
+            max_fro = torch.ones_like(sim[0,:,:]).norm() # frobenius default
             loss += args.sparsity_coeff * (max_fro - head_avg_fro)
             
         optimizer.zero_grad()
