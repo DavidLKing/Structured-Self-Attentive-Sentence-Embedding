@@ -101,6 +101,9 @@ if __name__ == "__main__":
             'class-number': args.class_number
         })
         model = model.to(device)
+        pytorch_total_params = sum(p.numel() for p in model.parameters()
+                                   if p.requires_grad)
+        print("Number of trainable params: " + str(pytorch_total_params))
         #print("bottleneck mtx device:")
         #print(model.bnWs[0].weight.device)
         if args.optimizer == 'Adam':

@@ -113,9 +113,9 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
             batch_head_ps = F.normalize(batch_sums, p=1, dim=1)
             batch_head_logps = torch.log(batch_head_ps)
             batch_head_plogp = batch_head_ps * batch_head_logps
-            avg_neg_entropy = -1.0 * torch.mean(torch.sum(batch_head_plogp, dim=1))
+            avg_entropy = -1.0 * torch.mean(torch.sum(batch_head_plogp, dim=1))
             maxent = torch.log(torch.tensor(intermediate.size(2)).double()).item()
-            loss += args.sparsity_coeff * (avg_neg_entropy.item() + maxent)
+            loss += args.sparsity_coeff * (maxent - avg_entropy.item())
         elif args.sparsity == 'similarity':
             # maximize similarity of representations *across a batch*,
             # independently for each head

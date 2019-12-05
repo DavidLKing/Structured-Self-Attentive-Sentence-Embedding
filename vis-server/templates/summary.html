@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Experimental summary</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+  <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+  <script type="text/javascript" src="http://mpld3.github.io/js/mpld3.v0.1.js"></script>
+  <div id="quintiles">
+  </div>
+  <div id="overall">
+    <h2>Overall Accuracy: {{overall}} </h2>
+    <h2>Baseline Accuracy: {{baseline}} </h2>
+  </div>
+  <div id="cls_accs">
+    <table style="width:100%">
+      <tr>
+	<th> Label </th>
+	<th> Experimental Acc. </th>
+	<th> Baseline Acc. </th>
+      </tr>
+      {% for i in range(cls_labels|length) %}
+      <tr>
+	<td>{% if beats[i] > 0 %} <span style="background-color:green">
+	    {% elif beats[i] == 0 %} <span style="background-color:yellow">
+	      {% endif %} {{cls_labels[i]}}
+	      {% if beats[i] >= 0 %} </span> {% endif %} </td>
+	<td> {{accs[i]}} </td>
+	<td> {{base_accs[i]}} </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <script type="text/javascript">
+    mpld3.draw_figure("quintiles", {{chart|safe}});
+  </script>
+  </body>
+  </html>
