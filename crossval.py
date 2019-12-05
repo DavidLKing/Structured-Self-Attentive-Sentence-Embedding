@@ -98,7 +98,7 @@ if __name__ == "__main__":
             'intrep': intrep,
             'dictionary': dictionary,
             'word-vector': args.word_vector,
-            'class-number': args.class_number
+            'class-number': args.class_number,
             'reserved': args.reserved
         })
         model = model.to(device)

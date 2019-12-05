@@ -58,6 +58,8 @@ def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
         output, attention, intermediate = model.forward(data, hidden)
+        if (i == 0):
+            print(attention[0,-3:,:])
         output_flat = output.view(data.size(1), -1)
         total_loss += criterion(output_flat, targets).item()
         prediction = torch.max(output_flat, 1)[1]
@@ -83,7 +85,7 @@ def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
     return avg_batch_loss, acc
 
 
-def train(model, data_train, dictionary, criterion, optimizer, device, args):
+def train(model, data_train, dictionary, criterion, optimizer, device, args, boost=False):
     model.train()
     total_loss = 0
     total_pure_loss = 0  # without the penalization term
@@ -98,8 +100,9 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
         output, attention, intermediate = model.forward(data, hidden)
-        if (i == 0):
-            print(attention[0,-2:,:])
+        if not boost:
+            nheads = args.hops - args.reserved
+            intermediate = intermediate[:,:nheads,:]
         loss = criterion(output.view(data.size(1), -1), targets)
         total_pure_loss += loss.item()
 
