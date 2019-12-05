@@ -33,6 +33,8 @@ def get_base_parser():
                         help='number of attention unit')
     parser.add_argument('--attention-hops', type=int, default=1,
                         help='number of attention hops, for multi-hop attention model')
+    parser.add_argument('--reserved', type=int, default=0,
+                        help='number of representation heads to reserve for boosting')
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--clip', type=float, default=0.5,

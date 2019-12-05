@@ -98,6 +98,8 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args):
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
         output, attention, intermediate = model.forward(data, hidden)
+        if (i == 0):
+            print(attention[0,-2:,:])
         loss = criterion(output.view(data.size(1), -1), targets)
         total_pure_loss += loss.item()
 

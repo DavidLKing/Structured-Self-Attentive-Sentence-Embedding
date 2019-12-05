@@ -71,7 +71,7 @@ class SelfAttentiveEncoder(nn.Module):
         self.dictionary = config['dictionary']
 #        self.init_weights()
         self.attention_hops = config['attention-hops']
-
+        
     def init_weights(self, init_range=0.1):
         self.ws1.weight.data.uniform_(-init_range, init_range)
         self.ws2.weight.data.uniform_(-init_range, init_range)
@@ -149,6 +149,7 @@ class BottleneckClassifier(nn.Module):
         self.ncat = config['ncat']
         self.nhid = config['nhid']
         self.nfc = config['nfc']
+        self.reserved = config['reserved']
         self.encoder = SelfAttentiveEncoder(config)
         self.tanh = nn.Tanh()
         self.bnWs = nn.ModuleList([nn.Linear(self.nhid*2, self.ncat) for hop in range(self.hops)])
@@ -160,7 +161,8 @@ class BottleneckClassifier(nn.Module):
         self.drop = nn.Dropout(config['dropout'])
         self.pred = nn.Linear(self.nfc, self.C)
         self.dictionary = config['dictionary']
-#        self.init_weights()
+        self.final_form = False
+        #self.init_weights()
 
     def init_weights(self, init_range=0.1):
         [bnW.weight.data.uniform_(-init_range, init_range) for bnW in self.bnWs]
@@ -172,9 +174,13 @@ class BottleneckClassifier(nn.Module):
 
     def forward(self, inp, hidden):
         outp, attention = self.encoder.forward(inp, hidden) # [bsz, hop, nhid*2], [bsz, hop, len]
-        outps = [self.drop(outp.narrow(1, i, 1)) for i in range(self.hops)] #[[bsz, 1, nhid*2]]
-        preint = [self.bnWs[i](outps[i]) for i in range(self.hops)] # [[bsz, 1, ncat]]
-        intermediate = [self.intact(preint[i]) for i in range(self.hops)]
+        nheads = self.hops - self.reserved if not self.final_form else self.hops
+        outps = [self.drop(outp.narrow(1, i, 1)) for i in range(nheads)] #[[bsz, 1, nhid*2]]
+        preint = [self.bnWs[i](outps[i]) for i in range(nheads)] # [[bsz, 1, ncat]]
+        intermediate = [self.intact(preint[i]) for i in range(nheads)]
+        if not self.final_form:
+            dummy = [torch.zeros_like(preint[0], requires_grad=False) for i in range(self.reserved)]
+            intermediate += dummy
         intermediate = torch.cat(intermediate, 1) # [bsz, hop, ncat]
         fc = self.tanh(self.fc(intermediate.view(intermediate.size(0),-1))) # [bsz, nfc]
         pred = self.pred(self.drop(fc)) # [bsz, ncls]
@@ -185,3 +191,7 @@ class BottleneckClassifier(nn.Module):
 
     def encode(self, inp, hidden):
         return self.encoder.forward(inp, hidden)[0]
+
+    def boost(self):
+        self.final_form = True
+        #TODO: disable grad

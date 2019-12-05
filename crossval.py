@@ -99,6 +99,7 @@ if __name__ == "__main__":
             'dictionary': dictionary,
             'word-vector': args.word_vector,
             'class-number': args.class_number
+            'reserved': args.reserved
         })
         model = model.to(device)
         pytorch_total_params = sum(p.numel() for p in model.parameters()
