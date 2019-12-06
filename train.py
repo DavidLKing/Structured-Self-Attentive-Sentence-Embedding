@@ -58,8 +58,8 @@ def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
         output, attention, intermediate = model.forward(data, hidden)
-        if (i == 0):
-            print(attention[0,-3:,:])
+        #if (i == 0):
+        #    print(model.encoder.ws2.weight)
         output_flat = output.view(data.size(1), -1)
         total_loss += criterion(output_flat, targets).item()
         prediction = torch.max(output_flat, 1)[1]
@@ -84,6 +84,42 @@ def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
     acc = total_correct / len(data_val)
     return avg_batch_loss, acc
 
+def analyze_data(model, data_train, dictionary, device, args):
+    """run model against training set to find confusions"""
+    model.eval()  # turn on the eval() switch to disable dropout
+    cls_list = []
+    cls_idx_map = {}
+    for batch, i in enumerate(range(0, len(data_train), args.batch_size)):
+        last = min(len(data_train), i+args.batch_size)
+        intoks = data_train[i:last]
+        data, targets = package(intoks, dictionary, is_train=False)
+        py_tgts = targets.tolist()
+        for idx,j in enumerate(range(i, last)):
+            tgt = py_tgts[idx]
+            if tgt in cls_idx_map:
+                cls_idx_map[tgt] += [j]
+            else:
+                cls_idx_map[tgt] = [j]
+        data, targets = data.to(device), targets.to(device)
+        hidden = model.init_hidden(data.size(1))
+        output, attention, intermediate = model.forward(data, hidden)
+        output_flat = output.view(data.size(1), -1)
+        prediction = torch.max(output_flat, 1)[1]
+        wrongs = prediction != targets
+        cls_list += prediction[wrongs].tolist() + targets[wrongs].tolist()
+    acc = total_correct / len(data_val)
+    return cls_list, cls_idx_map
+
+def resample_train(data_train, cls_list, cls_idx_map):
+    idxs = []
+    for tgt in cls_list:
+        idxs.append(random.choice(cls_idx_map[tgt]))
+    idxs = sorted(idxs)
+    new_data_train = []
+    for i in idxs:
+        new_data_train += [data_train[i]]
+    return new_data_train
+
 
 def train(model, data_train, dictionary, criterion, optimizer, device, args, boost=False):
     model.train()
@@ -101,7 +137,7 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args, boo
         hidden = model.init_hidden(data.size(1))
         output, attention, intermediate = model.forward(data, hidden)
         if not boost:
-            nheads = args.hops - args.reserved
+            nheads = args.attention_hops - args.reserved
             intermediate = intermediate[:,:nheads,:]
         loss = criterion(output.view(data.size(1), -1), targets)
         total_pure_loss += loss.item()

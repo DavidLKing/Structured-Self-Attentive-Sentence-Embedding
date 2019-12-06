@@ -73,6 +73,8 @@ if __name__ == "__main__":
     label_data = open(args.label_data).readlines()
     fold_dev_losses = []
     fold_dev_accs = []
+    fold_dev_boost_losses = []
+    fold_dev_boost_accs = []
     fold_test_accs = []
     fold_test_losses = []
     logfile = open(args.out_log, "w")
@@ -122,7 +124,7 @@ if __name__ == "__main__":
         data_train, data_val, data_test = get_splits(all_data, fold, label_data, args)
         for epoch in range(args.epochs):
             print('-' * 84)
-            print('BEGIN EPOCH ' + str(epoch))
+            print('BEGIN STAGE 1 EPOCH ' + str(epoch))
             print('-' * 84)
             if args.shuffle:
                 random.shuffle(data_train)
@@ -147,8 +149,48 @@ if __name__ == "__main__":
             save(model, args.save[:-3]+'.epoch-{:02d}.pt'.format(epoch))
 
         print('-' * 84)
+        print('ANALYZING ERRORS')
+        model = best_model
+        model.to(device)
+        model.encoder.flatten_parameters()
+        cls_list, cls_idx_map = analyze_data(model, data_train, dictionary,
+                                             device, args)
+        model.boost()
+        best_boost_val_loss = None
+        best_boost_acc = None
+        for epoch in range(args.stage2):
+            print('-' * 84)
+            print('BEGIN STAGE 2 EPOCH ' + str(epoch))
+            print('-' * 84)
+            resample = resample_train(data_train, cls_list, cls_idx_map)
+            if args.shuffle:
+                random.shuffle(resample)
+            model = train(model, resample, dictionary,
+                          criterion, optimizer, device, args)
+            evaluate_start_time = time.time()
+            val_loss, acc = evaluate(model, data_val, dictionary,
+                                     criterion, device, args)
+            print('-' * 84)
+            fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
+            print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
+            print('-' * 84)
+            # Save the model, if the validation loss is the best we've seen so far.
+            if not best_boost_val_loss or val_loss < best_boost_val_loss:
+                save(model, args.save)
+                best_boost_val_loss = val_loss
+            #else:  # if loss doesn't go down, divide the learning rate by 5.
+                #for param_group in optimizer.param_groups:
+                #    param_group['lr'] = param_group['lr'] * 0.2
+            if not best_boost_acc or acc > best_boost_acc:
+                save(model, args.save[:-3]+'.best_acc.pt')
+                best_boost_acc = acc
+                best_model = copy.deepcopy(model)
+            save(model, args.save[:-3]+'.epoch-{:02d}.pt'.format(epoch))
+        
         fold_dev_losses += [best_val_loss]
         fold_dev_accs += [best_acc]
+        fold_dev_boost_losses += [best_boost_val_loss]
+        fold_dev_boost_accs += [best_boost_acc]
         
         if args.eval_on_test:
             evaluate_start_time = time.time()
@@ -162,9 +204,13 @@ if __name__ == "__main__":
 
     print('-' * 84)
     fmt = '| dev average | test loss (pure) {:5.4f} | Acc {:8.4f}'
+    fmt2 = '| dev boost average | test loss (pure) {:5.4f} | Acc {:8.4f}'
     avg_dev_loss = sum(fold_dev_losses)/float(args.xfolds)
     avg_dev_acc = sum(fold_dev_accs)/float(args.xfolds)
+    avg_dev_boost_loss = sum(fold_dev_boost_losses)/float(args.xfolds)
+    avg_dev_boost_acc = sum(fold_dev_boost_accs)/float(args.xfolds)
     print(fmt.format(avg_dev_loss, avg_dev_acc))
+    print(fmt.format(avg_dev_boost_loss, avg_dev_boost_acc))
     print('-' * 84)
 
     if args.eval_on_test:

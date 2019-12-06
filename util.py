@@ -49,6 +49,8 @@ def get_base_parser():
                         help='initial learning rate')
     parser.add_argument('--epochs', type=int, default=40,
                         help='upper epoch limit')
+    parser.add_argument('--stage2', type=int, default=0,
+                        help='number of epochs to run in boosting stage')
     parser.add_argument('--seed', type=int, default=1111,
                         help='random seed')
     parser.add_argument('--cuda', action='store_true',

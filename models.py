@@ -194,4 +194,7 @@ class BottleneckClassifier(nn.Module):
 
     def boost(self):
         self.final_form = True
-        #TODO: disable grad
+        freezies = self.hops - self.reserved
+        for bnW in self.bnWs[:freezies]:
+            for p in bnW.parameters():
+                p.requires_grad_(False)
