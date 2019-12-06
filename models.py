@@ -11,7 +11,8 @@ class BiLSTM(nn.Module):
         super(BiLSTM, self).__init__()
         self.drop = nn.Dropout(config['dropout'])
         self.encoder = nn.Embedding(config['ntoken'], config['ninp'])
-        self.bilstm = nn.LSTM(config['ninp'], config['nhid'], config['nlayers'], dropout=config['dropout'],
+        self.bilstm = nn.LSTM(config['ninp'], config['nhid'],
+                              config['nlayers'], dropout=config['dropout'],
                               bidirectional=True)
         self.nlayers = config['nlayers']
         self.nhid = config['nhid']
@@ -198,3 +199,8 @@ class BottleneckClassifier(nn.Module):
         for bnW in self.bnWs[:freezies]:
             for p in bnW.parameters():
                 p.requires_grad_(False)
+        for p in encoder.bilstm.parameters():
+            p.requires_grad_(False)
+                
+    def flatten_parameters(self):
+        self.encoder.bilstm.bilstm.flatten_parameters()

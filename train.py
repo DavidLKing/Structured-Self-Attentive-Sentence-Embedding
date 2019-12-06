@@ -107,7 +107,6 @@ def analyze_data(model, data_train, dictionary, device, args):
         prediction = torch.max(output_flat, 1)[1]
         wrongs = prediction != targets
         cls_list += prediction[wrongs].tolist() + targets[wrongs].tolist()
-    acc = total_correct / len(data_val)
     return cls_list, cls_idx_map
 
 def resample_train(data_train, cls_list, cls_idx_map):
