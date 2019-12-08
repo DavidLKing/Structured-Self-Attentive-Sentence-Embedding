@@ -87,37 +87,45 @@ def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
 def analyze_data(model, data_train, dictionary, device, args):
     """run model against training set to find confusions"""
     model.eval()  # turn on the eval() switch to disable dropout
-    cls_list = []
-    cls_idx_map = {}
+    wrong_list = []
+    confusions = []
+    correct_lbls = []
+    right_map = {}
     for batch, i in enumerate(range(0, len(data_train), args.batch_size)):
         last = min(len(data_train), i+args.batch_size)
         intoks = data_train[i:last]
         data, targets = package(intoks, dictionary, is_train=False)
-        py_tgts = targets.tolist()
-        for idx,j in enumerate(range(i, last)):
-            tgt = py_tgts[idx]
-            if tgt in cls_idx_map:
-                cls_idx_map[tgt] += [j]
-            else:
-                cls_idx_map[tgt] = [j]
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
         output, attention, intermediate = model.forward(data, hidden)
         output_flat = output.view(data.size(1), -1)
         prediction = torch.max(output_flat, 1)[1]
-        wrongs = prediction != targets
-        cls_list += prediction[wrongs].tolist() + targets[wrongs].tolist()
-    return cls_list, cls_idx_map
+        # Need: wrong idxs, correct examples of same class, correct confusions
+        wrong = prediction != targets
+        wrong = wrong.tolist()
+        py_tgts = targets.tolist()
+        py_pred = prediction.tolist()
+        for idx,j in enumerate(range(i, last)):
+            tgt = py_tgts[idx]
+            if wrong[idx]:
+                wrong_list += [j]
+                confusions += [py_pred[idx]]
+                correct_lbls += [tgt]
+            else:
+                if tgt in right_map:
+                    right_map[tgt] += [j]
+                else:
+                    right_map[tgt] = [j]
+    return wrong_list, confusions, correct_lbls, right_map
 
-def resample_train(data_train, cls_list, cls_idx_map):
-    idxs = []
-    for tgt in cls_list:
-        idxs.append(random.choice(cls_idx_map[tgt]))
-    idxs = sorted(idxs)
-    new_data_train = []
-    for i in idxs:
-        new_data_train += [data_train[i]]
-    return new_data_train
+def collect_triplets(data_train, wrong_list, confusions, correct_lbls, right_map):
+    anchors = wrong_list
+    pos_exes = []
+    neg_exes = []
+    for i in len(wrong_list):
+        pos_exes.append(random.choice(right_map[correct_lbls[i]]))
+        neg_exes.append(random.choice(right_map[confusions[i]]))
+    return anchors, pos_exes, neg_exes
 
 
 def train(model, data_train, dictionary, criterion, optimizer, device, args, boost=False):
@@ -134,7 +142,8 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args, boo
         data, targets = package(data_train[i:i+args.batch_size], dictionary, is_train=True)
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
-        output, attention, intermediate = model.forward(data, hidden)
+        output_a, attention_a, intermediate_a = model.forward(data, hidden)
+        
         if not boost:
             nheads = args.attention_hops - args.reserved
             intermediate = intermediate[:,:nheads,:]
@@ -178,14 +187,7 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args, boo
         total_loss += loss.item()
 
         if batch % args.log_interval == 0 and batch > 0:
-            elapsed = time.time() - start_time
-            total_batches = len(data_train) // args.batch_size
-            batch_time = elapsed * 1000 / args.log_interval
-            batch_loss = total_loss / args.log_interval
-            pure_batch_loss = total_pure_loss / args.log_interval
-            print('| {:5d}/{:5d} batches | ms/batch {:5.2f} | loss {:5.4f} | pure loss {:5.4f}'
-                  .format(batch, total_batches, batch_time,
-                          batch_loss, pure_batch_loss))
+            log(start_time, total_loss, total_pure_loss, batch, args)
             total_loss = 0
             total_pure_loss = 0
             start_time = time.time()
@@ -195,6 +197,78 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args, boo
 #            print model.encoder.ws2.weight.grad.data
 #            exit()
     return model
+
+def train_trips(model, anchors, pos_exes, neg_exes,
+                dictionary, criterion, optimizer, device, args, boost=False):
+    model.train()
+    total_loss = 0
+    total_pure_loss = 0  # without the penalization term
+    start_time = time.time()
+    I = torch.zeros(args.batch_size, args.attention_hops, args.attention_hops)
+    for i in range(args.batch_size):
+        for j in range(args.attention_hops):
+            I.data[i][j][j] = 1
+    I = I.to(device)
+    for batch, i in enumerate(range(0, len(anchors), args.batch_size)):
+        data_a, targets_a = package(anchors[i:i+args.batch_size],
+                                    dictionary, is_train=True)
+        data_p, targets_p = package(pos_exes[i:i+args.batch_size],
+                                    dictionary, is_train=True)
+        data_n, targets_n = package(neg_exes[i:i+args.batch_size],
+                                    dictionary, is_train=True)
+        data_a, targets_a = data_a.to(device), targets_a.to(device)
+        data_p, targets_p = data_p.to(device), targets_p.to(device)
+        data_n, targets_n = data_n.to(device), targets_n.to(device)
+        hidden = model.init_hidden(data_a.size(1))
+        output_a, attention_a, intermediate_a = model.forward(data_a, hidden)
+        #todo?: freeze model for non-anchors
+        output_p, attention_p, intermediate_p = model.forward(data_p, hidden)
+        output_n, attention_n, intermediate_n = model.forward(data_n, hidden)
+        nheads = args.attention_hops - args.reserved
+        if not boost:
+            intermediate_a = intermediate_a[:,:nheads,:]
+            intermediate_p = intermediate_p[:,:nheads,:]
+            intermediate_n = intermediate_n[:,:nheads,:]
+        sub_loss = torch.tensor(0.)
+        for i in range(nheads):
+            a = intermediate_a[:,i,:].squeeze()
+            p = intermediate_p[:,i,:].squeeze()
+            n = intermediate_n[:,i,:].squeeze()
+            sub_loss += criterion(a, p, n)
+        h = torch.tensor(nheads, dtype=torch.double)
+        loss = sub_loss / h
+        total_pure_loss += loss.item()
+
+        # todo?: add back cross-entropy
+        optimizer.zero_grad()
+        loss.backward()
+
+        nn.utils.clip_grad_norm(model.parameters(), args.clip)
+        optimizer.step()
+
+        total_loss += loss.item()
+
+        if batch % args.log_interval == 0 and batch > 0:
+            log(start_time, total_loss, total_pure_loss, batch, args)
+            total_loss = 0
+            total_pure_loss = 0
+            start_time = time.time()
+            
+#            for item in model.parameters():
+#                print item.size(), torch.sum(item.data ** 2), torch.sum(item.grad ** 2).data[0]
+#            print model.encoder.ws2.weight.grad.data
+#            exit()
+    return model
+
+def log(start_time, total_loss, total_pure_loss, batch, args):
+    elapsed = time.time() - start_time
+    total_batches = len(data_train) // args.batch_size
+    batch_time = elapsed * 1000 / args.log_interval
+    batch_loss = total_loss / args.log_interval
+    pure_batch_loss = total_pure_loss / args.log_interval
+    print('| {:5d}/{:5d} batches | ms/batch {:5.2f} | loss {:5.4f} | pure loss {:5.4f}'
+          .format(batch, total_batches, batch_time,
+                  batch_loss, pure_batch_loss))
 
 def save(model, filename):
     with open(filename, 'wb') as f:

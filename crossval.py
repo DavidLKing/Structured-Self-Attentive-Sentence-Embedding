@@ -156,24 +156,35 @@ if __name__ == "__main__":
             model = best_model
             model.to(device)
             model.flatten_parameters()
-            #cls_list, cls_idx_map = analyze_data(model, data_train, dictionary,
-            #                                     device, args)
+            wrongs, confusions, corrects, right_map = analyze_data(model,
+                                                                   data_train,
+                                                                   dictionary,
+                                                                   device, args)
             model.boost()
             #reinitialize optimizer
             optimizer = optim.Adam(model.parameters(), lr=args.lr*0.25, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
+            trip_criterion = nn.TripletMarginLoss(margin=0.0, p=2.0)
             best_boost_val_loss = None
             best_boost_acc = None
             for epoch in range(args.stage2):
                 print('-' * 84)
                 print('BEGIN FOLD ' + str(fold) + ' STAGE 2 EPOCH ' + str(epoch))
                 print('-' * 84)
-                #resample = resample_train(data_train, cls_list, cls_idx_map)
+                anchors, pos_exes, neg_exes = collect_triplets(data_train,
+                                                               wrongs,
+                                                               confusions,
+                                                               corrects,
+                                                               right_map)
                 if args.shuffle:
-                    #random.shuffle(resample)
-                    random.shuffle(data_train)
-                #model = train(model, resample, dictionary,
-                model = train(model, data_train, dictionary,
-                              criterion, optimizer, device, args, boost=True)
+                    z = zip(anchors, pos_exes, neg_exes)
+                    random.shuffle(z)
+                    anchors, pos_exes, neg_exes = zip(*z)
+                    #random.shuffle(data_train)
+                model = train_trips(model, anchors, pos_exes, neg_exes,
+                                    dictionary, trip_criterion, optimizer,
+                                    device, args, boost=True)
+                #model = train(model, data_train, dictionary,
+                #              criterion, optimizer, device, args, boost=True)
                 evaluate_start_time = time.time()
                 val_loss, acc = evaluate(model, data_val, dictionary,
                                          criterion, device, args)
