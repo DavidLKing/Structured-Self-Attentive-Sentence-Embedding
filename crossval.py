@@ -124,7 +124,9 @@ if __name__ == "__main__":
         data_train, data_val, data_test = get_splits(all_data, fold, label_data, args)
         for epoch in range(args.epochs):
             print('-' * 84)
-            print('BEGIN STAGE 1 EPOCH ' + str(epoch))
+            print('BEGIN FOLD ' + str(fold) + ' STAGE 1 EPOCH ' + str(epoch))
+            print('-' * 84)
+            print(fold_test_accs)
             print('-' * 84)
             if args.shuffle:
                 random.shuffle(data_train)
@@ -153,23 +155,24 @@ if __name__ == "__main__":
             print('ANALYZING ERRORS')
             model = best_model
             model.to(device)
-            #TODO: make this a model method
             model.flatten_parameters()
-            cls_list, cls_idx_map = analyze_data(model, data_train, dictionary,
-                                                 device, args)
+            #cls_list, cls_idx_map = analyze_data(model, data_train, dictionary,
+            #                                     device, args)
             model.boost()
-            #reinitialize optimizer (?)
-            optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
+            #reinitialize optimizer
+            optimizer = optim.Adam(model.parameters(), lr=args.lr*0.25, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
             best_boost_val_loss = None
             best_boost_acc = None
             for epoch in range(args.stage2):
                 print('-' * 84)
-                print('BEGIN STAGE 2 EPOCH ' + str(epoch))
+                print('BEGIN FOLD ' + str(fold) + ' STAGE 2 EPOCH ' + str(epoch))
                 print('-' * 84)
-                resample = resample_train(data_train, cls_list, cls_idx_map)
+                #resample = resample_train(data_train, cls_list, cls_idx_map)
                 if args.shuffle:
-                    random.shuffle(resample)
-                model = train(model, resample, dictionary,
+                    #random.shuffle(resample)
+                    random.shuffle(data_train)
+                #model = train(model, resample, dictionary,
+                model = train(model, data_train, dictionary,
                               criterion, optimizer, device, args, boost=True)
                 evaluate_start_time = time.time()
                 val_loss, acc = evaluate(model, data_val, dictionary,

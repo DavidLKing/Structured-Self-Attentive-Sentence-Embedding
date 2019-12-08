@@ -11,9 +11,9 @@ class BiLSTM(nn.Module):
         super(BiLSTM, self).__init__()
         self.drop = nn.Dropout(config['dropout'])
         self.encoder = nn.Embedding(config['ntoken'], config['ninp'])
-        self.bilstm = nn.LSTM(config['ninp'], config['nhid'],
-                              config['nlayers'], dropout=config['dropout'],
-                              bidirectional=True)
+        self.bilstm = nn.GRU(config['ninp'], config['nhid'],
+                             config['nlayers'], dropout=config['dropout'],
+                             bidirectional=True)
         self.nlayers = config['nlayers']
         self.nhid = config['nhid']
         self.pooling = config['pooling']
@@ -53,10 +53,12 @@ class BiLSTM(nn.Module):
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
-        return (torch.zeros(self.nlayers * 2, bsz, self.nhid, dtype=weight.dtype,
-                            layout=weight.layout, device=weight.device),
-                torch.zeros(self.nlayers * 2, bsz, self.nhid, dtype=weight.dtype,
-                            layout=weight.layout, device=weight.device))
+        #return (torch.zeros(self.nlayers * 2, bsz, self.nhid, dtype=weight.dtype,
+        #                    layout=weight.layout, device=weight.device),
+        #        torch.zeros(self.nlayers * 2, bsz, self.nhid, dtype=weight.dtype,
+        #                    layout=weight.layout, device=weight.device))
+        return torch.zeros(self.nlayers * 2, bsz, self.nhid, dtype=weight.dtype,
+                            layout=weight.layout, device=weight.device)
 
     
 class SelfAttentiveEncoder(nn.Module):
@@ -199,8 +201,8 @@ class BottleneckClassifier(nn.Module):
         for bnW in self.bnWs[:freezies]:
             for p in bnW.parameters():
                 p.requires_grad_(False)
-        for p in encoder.bilstm.parameters():
-            p.requires_grad_(False)
+        #for p in self.encoder.bilstm.parameters():
+        #    p.requires_grad_(False)
                 
     def flatten_parameters(self):
         self.encoder.bilstm.bilstm.flatten_parameters()
