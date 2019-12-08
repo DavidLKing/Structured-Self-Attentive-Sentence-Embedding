@@ -91,6 +91,7 @@ def analyze_data(model, data_train, dictionary, device, args):
     confusions = []
     correct_lbls = []
     right_map = {}
+    wrong_map = {}
     for batch, i in enumerate(range(0, len(data_train), args.batch_size)):
         last = min(len(data_train), i+args.batch_size)
         intoks = data_train[i:last]
@@ -111,19 +112,32 @@ def analyze_data(model, data_train, dictionary, device, args):
                 wrong_list += [j]
                 confusions += [py_pred[idx]]
                 correct_lbls += [tgt]
+                if tgt in wrong_map:
+                    wrong_map[tgt] += [j]
+                else:
+                    wrong_map[tgt] = [j]
             else:
                 if tgt in right_map:
                     right_map[tgt] += [j]
                 else:
                     right_map[tgt] = [j]
-    return wrong_list, confusions, correct_lbls, right_map
+    return wrong_list, confusions, correct_lbls, right_map, wrong_map
 
-def collect_triplets(data_train, wrong_list, confusions, correct_lbls, right_map):
+def collect_triplets(data_train, wrong_list, confusions,
+                     correct_lbls, right_map, wrong_map):
     anchors = wrong_list
     pos_exes = []
     neg_exes = []
-    for i in len(wrong_list):
-        pos_exes.append(random.choice(right_map[correct_lbls[i]]))
+    for i in range(len(wrong_list)):
+        tgt = correct_lbls[i]
+        # if a member of the class was classified correctly, use it
+        if tgt in right_map:
+            pos_exes.append(random.choice(right_map[tgt]))
+        else: # otherwise, use a random incorrect example
+            # todo?: try random point
+            pos_exes.append(random.choice(wrong_map[tgt]))
+        # should always be a member of the confused class, or it
+        # wouldn't have been confused.
         neg_exes.append(random.choice(right_map[confusions[i]]))
     return anchors, pos_exes, neg_exes
 
@@ -142,7 +156,7 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args, boo
         data, targets = package(data_train[i:i+args.batch_size], dictionary, is_train=True)
         data, targets = data.to(device), targets.to(device)
         hidden = model.init_hidden(data.size(1))
-        output_a, attention_a, intermediate_a = model.forward(data, hidden)
+        output, attention, intermediate = model.forward(data, hidden)
         
         if not boost:
             nheads = args.attention_hops - args.reserved
@@ -187,7 +201,9 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args, boo
         total_loss += loss.item()
 
         if batch % args.log_interval == 0 and batch > 0:
-            log(start_time, total_loss, total_pure_loss, batch, args)
+
+            log(start_time, len(data_train), total_loss,
+                total_pure_loss, batch, args)
             total_loss = 0
             total_pure_loss = 0
             start_time = time.time()
@@ -249,7 +265,8 @@ def train_trips(model, anchors, pos_exes, neg_exes,
         total_loss += loss.item()
 
         if batch % args.log_interval == 0 and batch > 0:
-            log(start_time, total_loss, total_pure_loss, batch, args)
+            log(start_time, len(anchors), total_loss,
+                total_pure_loss, batch, args)
             total_loss = 0
             total_pure_loss = 0
             start_time = time.time()
@@ -260,9 +277,9 @@ def train_trips(model, anchors, pos_exes, neg_exes,
 #            exit()
     return model
 
-def log(start_time, total_loss, total_pure_loss, batch, args):
+def log(start_time, size, total_loss, total_pure_loss, batch, args):
     elapsed = time.time() - start_time
-    total_batches = len(data_train) // args.batch_size
+    total_batches = size // args.batch_size
     batch_time = elapsed * 1000 / args.log_interval
     batch_loss = total_loss / args.log_interval
     pure_batch_loss = total_pure_loss / args.log_interval

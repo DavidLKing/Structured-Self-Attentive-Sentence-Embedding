@@ -156,10 +156,10 @@ if __name__ == "__main__":
             model = best_model
             model.to(device)
             model.flatten_parameters()
-            wrongs, confusions, corrects, right_map = analyze_data(model,
-                                                                   data_train,
-                                                                   dictionary,
-                                                                   device, args)
+            wrongs, confusions, corrects, right_map, wrong_map = analyze_data(model,
+                                                                              data_train,
+                                                                              dictionary,
+                                                                              device, args)
             model.boost()
             #reinitialize optimizer
             optimizer = optim.Adam(model.parameters(), lr=args.lr*0.25, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
@@ -174,7 +174,8 @@ if __name__ == "__main__":
                                                                wrongs,
                                                                confusions,
                                                                corrects,
-                                                               right_map)
+                                                               right_map,
+                                                               wrong_map)
                 if args.shuffle:
                     z = zip(anchors, pos_exes, neg_exes)
                     random.shuffle(z)
