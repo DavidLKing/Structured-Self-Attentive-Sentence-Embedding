@@ -130,15 +130,19 @@ def collect_triplets(data_train, wrong_list, confusions,
     neg_exes = []
     for i in range(len(wrong_list)):
         tgt = correct_lbls[i]
+        conf = confusions[i]
         # if a member of the class was classified correctly, use it
         if tgt in right_map:
             pos_exes.append(random.choice(right_map[tgt]))
         else: # otherwise, use a random incorrect example
             # todo?: try random point
             pos_exes.append(random.choice(wrong_map[tgt]))
-        # should always be a member of the confused class, or it
-        # wouldn't have been confused.
-        neg_exes.append(random.choice(right_map[confusions[i]]))
+        # also might have never classified the confused class correctly,
+        # although we prefer the examples that it did
+        if conf in right_map:
+            neg_exes.append(random.choice(right_map[conf]))
+        else:
+            neg_exes.append(random.choice(wrong_map[conf]))
     return anchors, pos_exes, neg_exes
 
 
