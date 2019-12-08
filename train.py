@@ -125,24 +125,28 @@ def analyze_data(model, data_train, dictionary, device, args):
 
 def collect_triplets(data_train, wrong_list, confusions,
                      correct_lbls, right_map, wrong_map):
-    anchors = wrong_list
-    pos_exes = []
-    neg_exes = []
+    pos_idxs = []
+    neg_idxs = []
     for i in range(len(wrong_list)):
         tgt = correct_lbls[i]
         conf = confusions[i]
         # if a member of the class was classified correctly, use it
         if tgt in right_map:
-            pos_exes.append(random.choice(right_map[tgt]))
+            pos_idxs.append(random.choice(right_map[tgt]))
         else: # otherwise, use a random incorrect example
             # todo?: try random point
-            pos_exes.append(random.choice(wrong_map[tgt]))
+            pos_idxs.append(random.choice(wrong_map[tgt]))
         # also might have never classified the confused class correctly,
         # although we prefer the examples that it did
         if conf in right_map:
-            neg_exes.append(random.choice(right_map[conf]))
+            neg_idxs.append(random.choice(right_map[conf]))
         else:
-            neg_exes.append(random.choice(wrong_map[conf]))
+            neg_idxs.append(random.choice(wrong_map[conf]))
+    anchors, pos_exes, neg_exes = [], [], []
+    for i in len(wrong_list):
+        anchors.append(data_train[wrong_list[i]])
+        pos_exes.append(data_train[pos_idxs[i]])
+        neg_exes.append(data_train[neg_idxs[i]])
     return anchors, pos_exes, neg_exes
 
 

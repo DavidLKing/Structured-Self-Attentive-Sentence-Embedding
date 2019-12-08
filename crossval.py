@@ -177,7 +177,7 @@ if __name__ == "__main__":
                                                                right_map,
                                                                wrong_map)
                 if args.shuffle:
-                    z = zip(anchors, pos_exes, neg_exes)
+                    z = list(zip(anchors, pos_exes, neg_exes))
                     random.shuffle(z)
                     anchors, pos_exes, neg_exes = zip(*z)
                     #random.shuffle(data_train)
