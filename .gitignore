@@ -5,6 +5,8 @@
 
 vis-server/choices.*
 vis-server/*.csv
+vis-server/*.png
+vis-server/*.ods
 vis-server/vp16*
 
 aux

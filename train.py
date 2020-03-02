@@ -67,9 +67,12 @@ def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
         if outlog is not None:
             for i in range(len(intoks)):
                 in_words = json.loads(intoks[i])["text"]
-                atts = ["|".join([str(a) for a in attention[i,:,k].tolist()])
-                        for k in range(len(in_words))]
-                in_atts = [a+"|"+b for a,b in zip(in_words, atts)]
+                if attention is not None:
+                    atts = ["|".join([str(a) for a in attention[i,:,k].tolist()])
+                            for k in range(len(in_words))]
+                    in_atts = [a+"|"+b for a,b in zip(in_words, atts)]
+                else:
+                    in_atts = in_words
                 inputstr = " ".join(in_atts)
                 if intermediate is not None:
                     vbs = [" ".join([str(v) for v in intermediate[i,j,:].tolist()])
@@ -143,14 +146,14 @@ def collect_triplets(data_train, wrong_list, confusions,
         else:
             neg_idxs.append(random.choice(wrong_map[conf]))
     anchors, pos_exes, neg_exes = [], [], []
-    for i in len(wrong_list):
+    for i in range(len(wrong_list)):
         anchors.append(data_train[wrong_list[i]])
         pos_exes.append(data_train[pos_idxs[i]])
         neg_exes.append(data_train[neg_idxs[i]])
     return anchors, pos_exes, neg_exes
 
 
-def train(model, data_train, dictionary, criterion, optimizer, device, args, boost=False):
+def train(model, data_train, dictionary, criterion, optimizer, device, epoch, args, boost=False):
     model.train()
     total_loss = 0
     total_pure_loss = 0  # without the penalization term
@@ -166,39 +169,57 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args, boo
         hidden = model.init_hidden(data.size(1))
         output, attention, intermediate = model.forward(data, hidden)
         
-        if not boost:
+        if not boost and intermediate is not None:
             nheads = args.attention_hops - args.reserved
             intermediate = intermediate[:,:nheads,:]
         loss = criterion(output.view(data.size(1), -1), targets)
         total_pure_loss += loss.item()
 
         if attention is not None:  # add penalization term
-            attentionT = torch.transpose(attention, 1, 2).contiguous()
-            extra_loss = Frobenius(torch.bmm(attention, attentionT) - I[:attention.size(0)])
-            loss += args.penalization_coeff * extra_loss
-        if args.sparsity == 'L1':
-            sparsity_penalty = torch.mean(torch.mean(intermediate.norm(p=1, dim=2), dim=1)) # TODO: -1?
-            loss += args.sparsity_coeff * sparsity_penalty.item()
-        elif args.sparsity == 'entropy':
-            batch_sums = torch.sum(intermediate, dim=0)
-            batch_head_ps = F.normalize(batch_sums, p=1, dim=1)
-            batch_head_logps = torch.log(batch_head_ps)
-            batch_head_plogp = batch_head_ps * batch_head_logps
-            avg_entropy = -1.0 * torch.mean(torch.sum(batch_head_plogp, dim=1))
-            maxent = torch.log(torch.tensor(intermediate.size(2)).double()).item()
-            loss += args.sparsity_coeff * (maxent - avg_entropy.item())
-        elif args.sparsity == 'similarity':
-            # maximize similarity of representations *across a batch*,
-            # independently for each head
-            # first switch batch dimension to 1, and head dim to 0.
-            int_normed = F.normalize(intermediate, p=1, dim=2)
-            head_first = int_normed.transpose(0,1)
-            head_firstT = head_first.transpose(1,2)
-            # calculate "batch" (head) average frobenius norm as penalty (bonus)
-            sim = torch.bmm(head_first, head_firstT)
-            head_avg_fro = Frobenius(sim)
-            max_fro = torch.ones_like(sim[0,:,:]).norm() # frobenius default
-            loss += args.sparsity_coeff * (max_fro - head_avg_fro)
+            if args.penalization_growth is None:
+                p_coeff = args.penalization_coeff
+            else:
+                p_coeff = min(epoch*args.penalization_growth, 
+                              args.penalization_coeff)
+            if args.penalty == 'overlap':
+                attentionT = torch.transpose(attention, 1, 2).contiguous()
+                extra_loss = Frobenius(torch.bmm(attention, attentionT) - I[:attention.size(0)])
+            elif args.penalty == 'uncover':
+                max_att = torch.max(attention, dim=1)[0]
+                cover_all = torch.ones_like(max_att)
+                uncover = cover_all - max_att
+                extra_loss = torch.mean(torch.mean(uncover, dim=1))
+            loss += p_coeff * extra_loss
+
+        if intermediate is not None:
+            if args.sparsity_growth is None:
+                s_coeff = args.sparsity_coeff
+            else:
+                s_coeff = min(epoch*args.sparsity_growth, 
+                              args.sparsity_coeff)
+            if args.sparsity == 'L1':
+                sparsity_penalty = torch.mean(torch.mean(intermediate.norm(p=1, dim=2), dim=1)) 
+                loss += s_coeff * sparsity_penalty.item()
+            elif args.sparsity == 'entropy':
+                batch_sums = torch.sum(intermediate, dim=0)
+                batch_head_ps = F.normalize(batch_sums, p=1, dim=1)
+                batch_head_logps = torch.log(batch_head_ps)
+                batch_head_plogp = batch_head_ps * batch_head_logps
+                avg_entropy = -1.0 * torch.mean(torch.sum(batch_head_plogp, dim=1))
+                maxent = torch.log(torch.tensor(intermediate.size(2)).double()).item()
+                loss += s_coeff * (maxent - avg_entropy.item())
+            elif args.sparsity == 'similarity':
+                # maximize similarity of representations *across a batch*,
+                # independently for each head
+                # first switch batch dimension to 1, and head dim to 0.
+                int_normed = F.normalize(intermediate, p=1, dim=2)
+                head_first = int_normed.transpose(0,1)
+                head_firstT = head_first.transpose(1,2)
+                # calculate "batch" (head) average frobenius norm as penalty (bonus)
+                sim = torch.bmm(head_first, head_firstT)
+                head_avg_fro = Frobenius(sim)
+                max_fro = torch.ones_like(sim[0,:,:]).norm() # frobenius default
+                loss += s_coeff * (max_fro - head_avg_fro)
             
         optimizer.zero_grad()
         loss.backward()
@@ -223,7 +244,8 @@ def train(model, data_train, dictionary, criterion, optimizer, device, args, boo
     return model
 
 def train_trips(model, anchors, pos_exes, neg_exes,
-                dictionary, criterion, optimizer, device, args, boost=False):
+                dictionary, ce_criterion, trip_criterion, optimizer, 
+                device, args, boost=False):
     model.train()
     total_loss = 0
     total_pure_loss = 0  # without the penalization term
@@ -237,15 +259,14 @@ def train_trips(model, anchors, pos_exes, neg_exes,
         data_a, targets_a = package(anchors[i:i+args.batch_size],
                                     dictionary, is_train=True)
         data_p, targets_p = package(pos_exes[i:i+args.batch_size],
-                                    dictionary, is_train=True)
+                                    dictionary, is_train=False)
         data_n, targets_n = package(neg_exes[i:i+args.batch_size],
-                                    dictionary, is_train=True)
+                                    dictionary, is_train=False)
         data_a, targets_a = data_a.to(device), targets_a.to(device)
         data_p, targets_p = data_p.to(device), targets_p.to(device)
         data_n, targets_n = data_n.to(device), targets_n.to(device)
         hidden = model.init_hidden(data_a.size(1))
         output_a, attention_a, intermediate_a = model.forward(data_a, hidden)
-        #todo?: freeze model for non-anchors
         output_p, attention_p, intermediate_p = model.forward(data_p, hidden)
         output_n, attention_n, intermediate_n = model.forward(data_n, hidden)
         nheads = args.attention_hops - args.reserved
@@ -253,17 +274,20 @@ def train_trips(model, anchors, pos_exes, neg_exes,
             intermediate_a = intermediate_a[:,:nheads,:]
             intermediate_p = intermediate_p[:,:nheads,:]
             intermediate_n = intermediate_n[:,:nheads,:]
-        sub_loss = torch.tensor(0.)
+
+        #loss = ce_criterion(output_a.view(data_a.size(1), -1), targets_a)
+        #total_pure_loss += loss.item()
+
+        sub_loss = torch.tensor(0.).to(device)
         for i in range(nheads):
-            a = intermediate_a[:,i,:].squeeze()
-            p = intermediate_p[:,i,:].squeeze()
-            n = intermediate_n[:,i,:].squeeze()
-            sub_loss += criterion(a, p, n)
-        h = torch.tensor(nheads, dtype=torch.double)
+            a = intermediate_a[:,i,:].view(intermediate_a.size(0),-1)
+            p = intermediate_p[:,i,:].view(intermediate_p.size(0),-1)
+            n = intermediate_n[:,i,:].view(intermediate_n.size(0),-1)
+            sub_loss += trip_criterion(a, p, n)
+        h = torch.tensor(nheads, dtype=torch.float).to(device)
         loss = sub_loss / h
         total_pure_loss += loss.item()
-
-        # todo?: add back cross-entropy
+    
         optimizer.zero_grad()
         loss.backward()
 

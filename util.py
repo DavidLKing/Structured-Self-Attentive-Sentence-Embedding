@@ -23,6 +23,10 @@ class Dictionary(object):
 
 def get_base_parser():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--no-bottleneck', action='store_true',
+                        help='whether to use bottleneck model')
+    parser.add_argument('--pooling', type=str, default='all',
+                        help='pooling strategy; choices: [all, mean, max]')
     parser.add_argument('--emsize', type=int, default=300,
                         help='size of word embeddings')
     parser.add_argument('--nhid', type=int, default=300,
@@ -45,6 +49,8 @@ def get_base_parser():
                         help='number of categories for each random variable in the sparse intermediate representation')
     parser.add_argument('--sparsity', type=str, default='softmax',
                         help='strategy for inducing sparsity of intermediate representation; softmax, L1, entropy, or similarity')
+    parser.add_argument('--penalty', type=str, default='overlap',
+                        help='attention penalty; options: overlap, uncover')
     parser.add_argument('--lr', type=float, default=.001,
                         help='initial learning rate')
     parser.add_argument('--epochs', type=int, default=40,
@@ -73,8 +79,12 @@ def get_base_parser():
                         help='type of optimizer')
     parser.add_argument('--penalization-coeff', type=float, default=1, 
                         help='the attention orthogonality penalization coefficient')
+    parser.add_argument('--penalization-growth', type=float, default=None, 
+                        help='the attention orthogonality penalization growth rate')
     parser.add_argument('--sparsity-coeff', type=float, default=1, 
                         help='the intermediate rep sparsity penalization coefficient')
+    parser.add_argument('--sparsity-growth', type=float, default=None, 
+                        help='intermediate rep sparsity penalization growth rate')
     parser.add_argument('--eval-on-test', action='store_true',
                         help='evaluate test set after training')
     parser.add_argument('--out-log', type=str, default='choices.csv',

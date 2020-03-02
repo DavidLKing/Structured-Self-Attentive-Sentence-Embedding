@@ -60,7 +60,7 @@ if __name__ == "__main__":
     dictionary = Dictionary(path=args.dictionary)
     n_token = len(dictionary)
     criterion = nn.CrossEntropyLoss()
-    
+    trip_criterion = nn.TripletMarginLoss(margin=0.0, p=2.0)
     print(args)
 #    I = torch.zeros(args.batch_size, args.attention_hops, args.attention_hops)
 #    for i in range(args.batch_size):
@@ -86,23 +86,43 @@ if __name__ == "__main__":
         print('-' * 84)
         print('BEGIN FOLD ' + str(fold))
         print('-' * 84)
-        model = BottleneckClassifier({
-            'dropout': args.dropout,
-            'ntoken': n_token,
-            'nlayers': args.nlayers,
-            'nhid': args.nhid,
-            'ninp': args.emsize,
-            'pooling': 'all',
-            'attention-unit': args.attention_unit,
-            'attention-hops': args.attention_hops,
-            'nfc': args.nfc,
-            'ncat': args.ncat,
-            'intrep': intrep,
-            'dictionary': dictionary,
-            'word-vector': args.word_vector,
-            'class-number': args.class_number,
-            'reserved': args.reserved
-        })
+        if args.no_bottleneck:
+            model = Classifier({
+                    'dropout': args.dropout,
+                    'ntoken': n_token,
+                    'nlayers': args.nlayers,
+                    'nhid': args.nhid,
+                    'ninp': args.emsize,
+                    'pooling': args.pooling,
+                    'attention-unit': args.attention_unit,
+                    'attention-hops': args.attention_hops,
+                    'nfc': args.nfc,
+                    'ncat': args.ncat,
+                    'intrep': intrep,
+                    'dictionary': dictionary,
+                    'word-vector': args.word_vector,
+                    'class-number': args.class_number,
+                    'reserved': args.reserved
+                    })
+        else:
+            model = BottleneckClassifier({
+                    'dropout': args.dropout,
+                    'ntoken': n_token,
+                    'nlayers': args.nlayers,
+                    'nhid': args.nhid,
+                    'ninp': args.emsize,
+                    'pooling': 'all',
+                    'attention-unit': args.attention_unit,
+                    'attention-hops': args.attention_hops,
+                    'nfc': args.nfc,
+                    'ncat': args.ncat,
+                    'intrep': intrep,
+                    'dictionary': dictionary,
+                    'word-vector': args.word_vector,
+                    'class-number': args.class_number,
+                    'reserved': args.reserved
+                    })
+
         model = model.to(device)
         pytorch_total_params = sum(p.numel() for p in model.parameters()
                                    if p.requires_grad)
@@ -111,6 +131,8 @@ if __name__ == "__main__":
         #print(model.bnWs[0].weight.device)
         if args.optimizer == 'Adam':
             optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
+        elif args.optimizer == 'Adadelta':
+            optimizer = optim.Adadelta(model.parameters(), lr=args.lr, rho=0.95)
         # remove SGD since disabling learning rate adjustments in training loop
         #elif args.optimizer == 'SGD':
         #    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=0.01)
@@ -130,13 +152,46 @@ if __name__ == "__main__":
             print('-' * 84)
             if args.shuffle:
                 random.shuffle(data_train)
-            model = train(model, data_train, dictionary, criterion, optimizer, device, args)
+            model = train(model, data_train, dictionary, criterion, 
+                          optimizer, device, epoch, args)
             evaluate_start_time = time.time()
             val_loss, acc = evaluate(model, data_val, dictionary, criterion, device, args)
             print('-' * 84)
             fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
             print('-' * 84)
+            # Begin trip option
+            #if not best_acc or acc > best_acc:
+            #    save(model, args.save[:-3]+'.best_acc.pt')
+            #    best_acc = acc
+            #    best_model = copy.deepcopy(model)
+
+            #wrongs, confusions, corrects, right_map, wrong_map = analyze_data(model,
+            #                                                                 data_train,
+            #                                                                  dictionary,
+            #                                                                  device, args)
+            #anchors, pos_exes, neg_exes = collect_triplets(data_train,
+            #                                               wrongs,
+            #                                               confusions,
+            #                                               corrects,
+            #                                               right_map,
+            #                                               wrong_map)
+            #if args.shuffle:
+            #    z = list(zip(anchors, pos_exes, neg_exes))
+            #    random.shuffle(z)
+            #    anchors, pos_exes, neg_exes = zip(*z)
+            #model = train_trips(model, anchors, pos_exes, neg_exes,
+            #                    dictionary, criterion, trip_criterion, optimizer,
+            #                    device, args, boost=True)
+
+            #evaluate_start_time = time.time()
+            #val_loss, acc = evaluate(model, data_val, dictionary,
+            #                         criterion, device, args)
+            #print('-' * 84)
+            #fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
+            #print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
+            #print('-' * 84)
+            # End trip option
             # Save the model, if the validation loss is the best we've seen so far.
             if not best_val_loss or val_loss < best_val_loss:
                 save(model, args.save)
@@ -156,13 +211,16 @@ if __name__ == "__main__":
             model = best_model
             model.to(device)
             model.flatten_parameters()
-            wrongs, confusions, corrects, right_map, wrong_map = analyze_data(model,
-                                                                              data_train,
-                                                                              dictionary,
-                                                                              device, args)
-            model.boost()
+            #wrongs, confusions, corrects, right_map, wrong_map = analyze_data(model,
+            #                                                                  data_train,
+            #                                                                  dictionary,
+            #                                                                  device, args)
+            #model.boost()
             #reinitialize optimizer
-            optimizer = optim.Adam(model.parameters(), lr=args.lr*0.25, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
+            if args.optimizer == 'Adam':
+                optimizer = optim.Adam(model.parameters(), lr=args.lr*0.25, betas=[0.9, 0.999], eps=1e-8, weight_decay=0)
+            elif args.optimizer == 'Adadelta':
+                optimizer = optim.Adadelta(model.parameters(), lr=args.lr*0.25, rho=0.95)
             trip_criterion = nn.TripletMarginLoss(margin=0.0, p=2.0)
             best_boost_val_loss = None
             best_boost_acc = None
@@ -170,22 +228,22 @@ if __name__ == "__main__":
                 print('-' * 84)
                 print('BEGIN FOLD ' + str(fold) + ' STAGE 2 EPOCH ' + str(epoch))
                 print('-' * 84)
-                anchors, pos_exes, neg_exes = collect_triplets(data_train,
-                                                               wrongs,
-                                                               confusions,
-                                                               corrects,
-                                                               right_map,
-                                                               wrong_map)
+                #anchors, pos_exes, neg_exes = collect_triplets(data_train,
+                #                                               wrongs,
+                #                                               confusions,
+                #                                               corrects,
+                #                                               right_map,
+                #                                               wrong_map)
                 if args.shuffle:
-                    z = list(zip(anchors, pos_exes, neg_exes))
-                    random.shuffle(z)
-                    anchors, pos_exes, neg_exes = zip(*z)
-                    #random.shuffle(data_train)
-                model = train_trips(model, anchors, pos_exes, neg_exes,
-                                    dictionary, trip_criterion, optimizer,
-                                    device, args, boost=True)
-                #model = train(model, data_train, dictionary,
-                #              criterion, optimizer, device, args, boost=True)
+                    #z = list(zip(anchors, pos_exes, neg_exes))
+                    #random.shuffle(z)
+                    #anchors, pos_exes, neg_exes = zip(*z)
+                    random.shuffle(data_train)
+                #model = train_trips(model, anchors, pos_exes, neg_exes,
+                #                    dictionary, trip_criterion, optimizer,
+                #                    device, args, boost=True)
+                model = train(model, data_train, dictionary,
+                              criterion, optimizer, device, epoch, args, boost=True)
                 evaluate_start_time = time.time()
                 val_loss, acc = evaluate(model, data_val, dictionary,
                                          criterion, device, args)

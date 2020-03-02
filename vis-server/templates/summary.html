@@ -11,7 +11,9 @@
   </div>
   <div id="overall">
     <h2>Overall Accuracy: {{overall}} </h2>
+    <h3>Pr: {{exp_prfs[0]|round(3)}} Re: {{exp_prfs[1]|round(3)}} F1: {{exp_prfs[2]|round(3)}}</h3>
     <h2>Baseline Accuracy: {{baseline}} </h2>
+    <h3>Pr: {{base_prfs[0]|round(3)}} Re: {{base_prfs[1]|round(3)}} F1: {{base_prfs[2]|round(3)}}</h3>
   </div>
   <div id="cls_accs">
     <table style="width:100%">

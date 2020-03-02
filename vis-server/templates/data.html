@@ -33,6 +33,7 @@
 	{% endfor %}
 	</td>
 	<td>
+	  {% if reps[i] != "NA" %}
 	  <table class="intermediate">
 	    {% for j in range(reps[i]|length) %}
 	    <tr>
@@ -42,6 +43,7 @@
 	    </tr>
 	    {% endfor %}
 	  </table>
+	  {% endif %}
 	</td>
       </tr>
       {% endfor %}

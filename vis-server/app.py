@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, url_for
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.manifold import TSNE
+from sklearn.metrics import precision_recall_fscore_support
 import mpld3
 from mpld3 import plugins
 import json
@@ -53,11 +54,12 @@ with open("choices.csv", 'r') as f:
         sents.append(sent)
         labels.append(int(label))
         preds.append(int(pred))
-        rep = [[round(float(val),2) for val in v.split(' ')]
-               for v in rep.split('|')]
-        if first:
-            print(rep)
-            first = False
+        if rep != "NA":
+            rep = [[round(float(val),2) for val in v.split(' ')]
+                   for v in rep.split('|')]
+            if first:
+                print(rep)
+                first = False
         reps.append(rep)
 
 with open("cnn-baseline-choices.csv", 'r') as f:
@@ -69,7 +71,8 @@ with open("cnn-baseline-choices.csv", 'r') as f:
         base_corrects.append(bool(int(correct)))
 
 lb_lookup = {}
-with open("vp16.superfix+cs17.known.labels.txt") as f:
+#with open("vp16.superfix+cs17.known.labels.txt") as f:
+with open("vp16+cs17.strict.labels.txt") as f:
     for line in f:
         lb_int, lb_txt = line.strip().split('\t')
         lb_int = int(lb_int)
@@ -182,6 +185,13 @@ def summary():
     ax.legend()
     overall_acc = round(sum(quint_corrects)/float(sum(quint_sums)),3)
     baseline_acc = round(sum(base_qnt_corrects)/float(sum(quint_sums)),3)
+    exp_prfs = precision_recall_fscore_support(np.array(labels),
+                                               np.array(preds),
+                                               average='macro')
+    base_prfs = precision_recall_fscore_support(np.array(base_labels),
+                                                np.array(base_preds),
+                                                average='macro')
+    plt.savefig('quintile-acc.png', bbox_inches='tight', dpi=300)
     chart = json.dumps(mpld3.fig_to_dict(fig))
     reverse_freqs = list(reversed(sorted_freqs))
     cls_labels = [lbl for (count, lbl) in reverse_freqs]
@@ -200,7 +210,8 @@ def summary():
     cls_lb_txts = [lb_lookup[lbl] for lbl in cls_labels]
     return render_template('summary.html', chart=chart, cls_labels=cls_lb_txts,
                            accs=cls_accs, base_accs=base_accs, overall=overall_acc,
-                           baseline=baseline_acc, beats=beats)
+                           baseline=baseline_acc, beats=beats, exp_prfs=exp_prfs,
+                           base_prfs=base_prfs)
 
 @app.route('/clusters')
 def show_tsne():
@@ -220,12 +231,16 @@ def show_tsne():
     for i in range(num_heads):
         tX[:,i,:] = tsne.fit_transform(X[:,i,:])
     #print(tX[:10,:])
+    tips = np_lbls.tolist()
     for i in range(num_heads):
         points = ax[i//2,i%2].scatter(tX[:,i,0], tX[:,i,1], c=mark_col, s=30, edgecolors='k', alpha=0.6)
+        tooltip = plugins.PointLabelTooltip(points, labels=tips)
+        plugins.connect(fig, tooltip)
         points = ax[i//2,(i%2)+2].scatter(tX[:,i,0], tX[:,(i+1)%num_heads,0], alpha=0)
         points = ax[i//2,(i%2)+4].scatter(tX[:,i,0], tX[:,(i+2)%num_heads,1], alpha=0)
     #for i, txt in enumerate(labels[:680]):
     #    ax.annotate(txt, (tX[i,0], tX[i,1]))
+    
     plugins.connect(fig, plugins.LinkedBrush(points))
     #chart = json.dumps(mpld3.fig_to_dict(fig))
     #ax.legend()

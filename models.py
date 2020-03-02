@@ -27,14 +27,20 @@ class BiLSTM(nn.Module):
             vocab = vectors[1]
             vectors = vectors[2]
             loaded_cnt = 0
+            unseen_cnt = 0
             for word in self.dictionary.word2idx:
                 if word not in vocab:
-                    continue
+                    to_add = torch.zeros_like(vectors[0]).uniform_(-0.25,0.25)
+                    print("uncached word: " + word)
+                    unseen_cnt += 1
+                    #print(to_add)
+                else:
+                    loaded_id = vocab[word]
+                    to_add = vectors[loaded_id][:config['ninp']]
+                    loaded_cnt += 1
                 real_id = self.dictionary.word2idx[word]
-                loaded_id = vocab[word]
-                self.encoder.weight.data[real_id] = vectors[loaded_id][:config['ninp']]
-                loaded_cnt += 1
-            print('%d words from external word vectors loaded.' % loaded_cnt)
+                self.encoder.weight.data[real_id] = to_add
+            print('%d words from external word vectors loaded, %d unseen' % (loaded_cnt, unseen_cnt))
 
     # note: init_range constraints the value of initial weights
     def init_weights(self, init_range=0.1):
@@ -139,6 +145,12 @@ class Classifier(nn.Module):
     def init_hidden(self, bsz):
         return self.encoder.init_hidden(bsz)
 
+    def flatten_parameters(self):
+        if isinstance(self.encoder, SelfAttentiveEncoder):
+            self.encoder.bilstm.bilstm.flatten_parameters()
+        elif isinstance(self.encoder, BiLSTM):
+            self.encoder.bilstm.flatten_parameters()
+
     def encode(self, inp, hidden):
         return self.encoder.forward(inp, hidden)[0]
 
@@ -155,6 +167,8 @@ class BottleneckClassifier(nn.Module):
         self.reserved = config['reserved']
         self.encoder = SelfAttentiveEncoder(config)
         self.tanh = nn.Tanh()
+        self.lrelu = nn.LeakyReLU()
+        self.softplus = nn.Softplus()
         self.bnWs = nn.ModuleList([nn.Linear(self.nhid*2, self.ncat) for hop in range(self.hops)])
         if config['intrep'] == 'softmax':
             self.intact = nn.Sequential(nn.Tanh(),nn.Softmax(dim = 2))
