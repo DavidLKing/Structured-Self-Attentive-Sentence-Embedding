@@ -9,7 +9,7 @@ import json
 
 app = Flask(__name__)
 
-sents, preds, labels, reps = [], [], [], []
+sents, preds, labels, reps, folds = [], [], [], [], []
 base_sents, base_preds, base_labels, base_corrects = [], [], [], []
 corrects = []
 colors = ["51,204,204",
@@ -44,7 +44,7 @@ def discretize(head, val):
 with open("choices.csv", 'r') as f:
     first = True
     for line in f:
-        sent, pred, label, rep = line.strip().split('\t')
+        sent, pred, label, rep, fold = line.strip().split('\t')
         sent = sent.split(' ')
         sent = [tok.split('|') for tok in sent]
         for tok in sent:
@@ -54,6 +54,7 @@ with open("choices.csv", 'r') as f:
         sents.append(sent)
         labels.append(int(label))
         preds.append(int(pred))
+        folds.append(int(fold))
         if rep != "NA":
             rep = [[round(float(val),2) for val in v.split(' ')]
                    for v in rep.split('|')]
@@ -91,6 +92,7 @@ def showit():
     selected_preds = []
     selected_corrects = []
     selected_reps = []
+    selected_folds = []
     if label_selector:
         for i in range(len(sents)):
             if labels[i] == label_selector:
@@ -99,17 +101,20 @@ def showit():
                 selected_preds.append(preds[i])
                 selected_corrects.append(corrects[i])
                 selected_reps.append(reps[i])
+                selected_folds.append(folds[i])
     else:
         selected_sents = sents
         selected_labels = labels
         selected_preds = preds
         selected_corrects = corrects
         selected_reps = reps
+        selected_folds = folds
     show_sents = selected_sents[start:last]
     show_labels = selected_labels[start:last]
     show_preds = selected_preds[start:last]
     show_corrects = selected_corrects[start:last]
     show_reps = selected_reps[start:last]
+    show_folds = selected_folds[start:last]
     next_start = last
     last_start = start - show if (start - show > 0) else 0
     selector = ""
@@ -120,7 +125,8 @@ def showit():
     nav = {"next_page":next_page, "last_page":last_page}
     return render_template('data.html', sents=show_sents, colors=colors,
                            labels=show_labels, preds=show_preds,
-                           reps=show_reps, corrects=show_corrects, nav=nav)
+                           reps=show_reps, corrects=show_corrects,
+                           folds=show_folds, nav=nav)
 
 def count_corrects(label_list, correct_list):
     class_counts = {}

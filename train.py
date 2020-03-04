@@ -46,7 +46,7 @@ def package(data, dictionary, is_train=True):
         targets = torch.tensor(targets, dtype=torch.long)
     return dat.t(), targets
 
-def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
+def evaluate(model, data_val, dictionary, criterion, device, args, fold, outlog=None):
     """evaluate the model while training"""
     model.eval()  # turn on the eval() switch to disable dropout
     total_loss = 0
@@ -81,7 +81,7 @@ def evaluate(model, data_val, dictionary, criterion, device, args, outlog=None):
                 else:
                     inter = "NA"
                 logstr = "\t".join((inputstr, str(prediction[i].item()),
-                                    str(targets[i].item()), inter))
+                                    str(targets[i].item()), inter, fold))
                 outlog.write(logstr + "\n")
     avg_batch_loss = total_loss / (len(data_val) // args.batch_size)
     acc = total_correct / len(data_val)

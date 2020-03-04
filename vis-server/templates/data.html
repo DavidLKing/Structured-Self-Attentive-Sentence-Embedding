@@ -16,6 +16,7 @@
 	<th> Correct </th>
 	<th> Sentence </th>
 	<th> Intermediate </th>
+	<th> Fold </th>
       </tr>
       {% for i in range(sents|length) %}
       <tr>
@@ -45,6 +46,7 @@
 	  </table>
 	  {% endif %}
 	</td>
+	<td> {{folds[i]}} </td>
       </tr>
       {% endfor %}
     </table>

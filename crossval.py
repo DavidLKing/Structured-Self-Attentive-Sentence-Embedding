@@ -155,7 +155,7 @@ if __name__ == "__main__":
             model = train(model, data_train, dictionary, criterion, 
                           optimizer, device, epoch, args)
             evaluate_start_time = time.time()
-            val_loss, acc = evaluate(model, data_val, dictionary, criterion, device, args)
+            val_loss, acc = evaluate(model, data_val, dictionary, criterion, device, args, fold)
             print('-' * 84)
             fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
@@ -246,7 +246,7 @@ if __name__ == "__main__":
                               criterion, optimizer, device, epoch, args, boost=True)
                 evaluate_start_time = time.time()
                 val_loss, acc = evaluate(model, data_val, dictionary,
-                                         criterion, device, args)
+                                         criterion, device, args, fold)
                 print('-' * 84)
                 fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
                 print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
@@ -273,7 +273,7 @@ if __name__ == "__main__":
             evaluate_start_time = time.time()
             best_model.to(device)
             best_model.flatten_parameters()
-            test_loss, acc = evaluate(best_model, data_test, dictionary, criterion, device, args, outlog=logfile)
+            test_loss, acc = evaluate(best_model, data_test, dictionary, criterion, device, args, fold, outlog=logfile)
             fold_test_losses += [test_loss]
             fold_test_accs += [acc]
             print('-' * 84)
