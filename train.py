@@ -81,7 +81,7 @@ def evaluate(model, data_val, dictionary, criterion, device, args, fold, outlog=
                 else:
                     inter = "NA"
                 logstr = "\t".join((inputstr, str(prediction[i].item()),
-                                    str(targets[i].item()), inter, fold))
+                                    str(targets[i].item()), inter, str(fold)))
                 outlog.write(logstr + "\n")
     avg_batch_loss = total_loss / (len(data_val) // args.batch_size)
     acc = total_correct / len(data_val)
