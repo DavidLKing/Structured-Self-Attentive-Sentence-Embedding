@@ -135,12 +135,12 @@ class Classifier(nn.Module):
 
     def forward(self, inp, hidden):
         outp, attention = self.encoder.forward(inp, hidden) # [bsz, hop, nhid*2], [bsz, hop, len]
-        outp = outp.view(outp.size(0), -1) # [bsz, hop*nhid*2]
-        fc = self.tanh(self.fc(self.drop(outp))) # [bsz, nfc]
+        prefc = outp.view(outp.size(0), -1) # [bsz, hop*nhid*2]
+        fc = self.tanh(self.fc(self.drop(prefc))) # [bsz, nfc]
         pred = self.pred(self.drop(fc)) # [bsz, ncls]
         if type(self.encoder) == BiLSTM:
             attention = None
-        return pred, attention, None
+        return pred, attention, outp
 
     def init_hidden(self, bsz):
         return self.encoder.init_hidden(bsz)
