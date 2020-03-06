@@ -24,7 +24,7 @@ colors = ["51,204,204",
           "153,0,51",
           "153,102,51",
           "0,102,0"]
-
+showrep = False
 
 def discretize(head, val):
     val = float(val)
@@ -55,12 +55,14 @@ with open("choices.csv", 'r') as f:
         labels.append(int(label))
         preds.append(int(pred))
         folds.append(int(fold))
-        if rep != "NA":
+        if showrep:
             rep = [[round(float(val),2) for val in v.split(' ')]
                    for v in rep.split('|')]
             if first:
                 print(rep)
                 first = False
+        else:
+            rep = "NA"    
         reps.append(rep)
 
 with open("cnn-baseline-choices.csv", 'r') as f:
