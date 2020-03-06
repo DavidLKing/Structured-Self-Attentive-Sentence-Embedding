@@ -13,6 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--labels', type=str, default='', help='label file')
     parser.add_argument('--dict', type=str, default='', help='dictionary file')
     parser.add_argument('--label-data', action='store_true', help='to parse label file into json format')
+    parser.add_argument('--shuffle', action='store_true', help='output shuffled data to file')
     args = parser.parse_args()
     tokenizer = spacy.load('en_core_web_md')
     dictionary = Dictionary()
@@ -27,7 +28,7 @@ if __name__ == '__main__':
             int2lab[labint] = labtext
     with open(args.output, 'w') as fout:
         lines = open(args.input).readlines()
-        random.shuffle(lines)
+        if args.shuffle: random.shuffle(lines)
         for i, line in enumerate(lines):
             if not line.startswith("#STARTDIALOGUE"):
                 # data: input<tab>label<tab>response<tab>interp<tab>correct<tab>...
