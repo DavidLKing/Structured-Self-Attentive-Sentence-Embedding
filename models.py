@@ -20,27 +20,26 @@ class BiLSTM(nn.Module):
         self.dictionary = config['dictionary']
 #        self.init_weights()
         self.encoder.weight.data[self.dictionary.word2idx['<pad>']] = 0
-        if os.path.exists(config['word-vector']):
-            print('Loading word vectors from', config['word-vector'])
-            vectors = torch.load(config['word-vector'])
-            assert vectors[3] >= config['ninp']
-            vocab = vectors[1]
-            vectors = vectors[2]
-            loaded_cnt = 0
-            unseen_cnt = 0
-            for word in self.dictionary.word2idx:
-                if word not in vocab:
-                    to_add = torch.zeros_like(vectors[0]).uniform_(-0.25,0.25)
-                    # print("uncached word: " + word)
-                    unseen_cnt += 1
-                    #print(to_add)
-                else:
-                    loaded_id = vocab[word]
-                    to_add = vectors[loaded_id][:config['ninp']]
-                    loaded_cnt += 1
-                real_id = self.dictionary.word2idx[word]
-                self.encoder.weight.data[real_id] = to_add
-            print('%d words from external word vectors loaded, %d unseen' % (loaded_cnt, unseen_cnt))
+
+        vectors = config['word-embs']
+        assert vectors[3] >= config['ninp']
+        vocab = vectors[1]
+        vectors = vectors[2]
+        loaded_cnt = 0
+        unseen_cnt = 0
+        for word in self.dictionary.word2idx:
+            if word not in vocab:
+                to_add = torch.zeros_like(vectors[0]).uniform_(-0.25,0.25)
+                # print("uncached word: " + word)
+                unseen_cnt += 1
+                #print(to_add)
+            else:
+                loaded_id = vocab[word]
+                to_add = vectors[loaded_id][:config['ninp']]
+                loaded_cnt += 1
+            real_id = self.dictionary.word2idx[word]
+            self.encoder.weight.data[real_id] = to_add
+        print('%d words from external word vectors loaded, %d unseen' % (loaded_cnt, unseen_cnt))
 
     # note: init_range constraints the value of initial weights
     def init_weights(self, init_range=0.1):

@@ -18,7 +18,7 @@ import json
 import random
 from sklearn.metrics import f1_score, accuracy_score
 from tqdm import tqdm
-
+import pickle as pkl
 
 def get_ranked_paras(paras, testing, metric):
     '''
@@ -209,6 +209,8 @@ if __name__ == "__main__":
                         help='location of weighed paraphrases')
     parser.add_argument('--sample-rate', type=float, default=None,
                         help='rate to sample ranked paraphrases at')
+    parser.add_argument('--save-pkl', type=str, default=None,
+                        help='are we saving a pickle?')
     parser.add_argument('--indecrease', type=str, default=None,
                         help='1/x increasing or decrease per epoch training?')
     parser.add_argument('--label-data', type=str, default='',
@@ -257,6 +259,19 @@ if __name__ == "__main__":
     else:
         all_para = None
         sample_rate = 0.0
+    if args.save_pkl:
+        SAVE = True
+    else:
+        SAVE = False
+    # TODO possibly remove if we have a memroy issue
+    relevants = {}
+    # Please let this work
+    if os.path.exists(args.word_vector):
+        # config['word-vector']):
+        print('Loading word vectors from', args.word_vector)
+        word_embs = torch.load(args.word_vector)
+    else:
+        sys.exit("Word vector file not found")
     # end
     label_data = open(args.label_data).readlines()
     fold_dev_losses = []
@@ -270,6 +285,13 @@ if __name__ == "__main__":
         intrep = 'softmax'
     elif args.sparsity in ['L1', 'entropy', 'similarity']:
         intrep = 'sigmoid'
+
+    fold_dev_quant_accs = []
+    fold_dev_quant_macros = []
+    fold_dev_quant_counts = []
+    fold_test_quant_accs = []
+    fold_test_quant_macros = []
+    fold_test_quant_counts = []
 
     dev_all_preds = []
     dev_all_targs = []
@@ -295,7 +317,7 @@ if __name__ == "__main__":
                     'ncat': args.ncat,
                     'intrep': intrep,
                     'dictionary': dictionary,
-                    'word-vector': args.word_vector,
+                    'word-embs': word_embs,
                     'class-number': args.class_number,
                     'reserved': args.reserved
                     })
@@ -313,7 +335,7 @@ if __name__ == "__main__":
                     'ncat': args.ncat,
                     'intrep': intrep,
                     'dictionary': dictionary,
-                    'word-vector': args.word_vector,
+                    'word-vector': word_embs,
                     'class-number': args.class_number,
                     'reserved': args.reserved
                     })
@@ -385,11 +407,12 @@ if __name__ == "__main__":
             fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
             macro = f1_score(targs, preds, average='macro')
-            print("CHECKING MACRO F1:", macro)
-            quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
-            print("Quantiles:")
-            for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
-                print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
+            print("| CHECKING MACRO F1:", macro)
+            # quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
+            # print("Quantiles:")
+            # for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+            #     num = quant + 1
+            #     print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
             print('-' * 84)
             # Begin trip option
             #if not best_acc or acc > best_acc:
@@ -486,13 +509,14 @@ if __name__ == "__main__":
                 fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
                 print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
                 macro = f1_score(targs, preds, average='macro')
-                print("CHECKING MACRO F1:", macro)
-                print("btw, this is the stage 2 check")
+                print("| CHECKING MACRO F1:", macro)
+                print("| btw, this is the stage 2 check")
                 print('-' * 84)
-                quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
-                print("Quantiles:")
-                for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
-                    print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
+                # quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
+                # print("Quantiles:")
+                # for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+                #     num = quant + 1
+                #     print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
                 # Save the model, if the validation loss is the best we've seen so far.
                 if not best_boost_val_loss or val_loss < best_boost_val_loss:
                     save(model, args.save)
@@ -512,7 +536,24 @@ if __name__ == "__main__":
         fold_dev_accs += [best_acc]
         dev_all_preds += best_preds
         dev_all_targs += best_targs
-        
+
+        dev_quant_accs = []
+        dev_quant_macros = []
+        dev_quant_counts = []
+        test_quant_accs = []
+        test_quant_macros = []
+        test_quant_counts = []
+
+        quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, best_preds, best_targs, best_acc)
+        print("| Quantiles:")
+        for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+            num = quant + 1
+            print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
+            dev_quant_accs.append(acc)
+            dev_quant_macros.append(f1)
+            dev_quant_counts.append(count)
+        print('-' * 84)
+
         if args.eval_on_test:
             evaluate_start_time = time.time()
             best_model.to(device)
@@ -525,20 +566,45 @@ if __name__ == "__main__":
             print('-' * 84)
             fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
+
             macro = f1_score(targs, preds, average='macro')
-            print("CHECKING MACRO F1:", macro)
-            print("btw, this is the eval_on_test check")
+            print("| CHECKING MACRO F1:", macro)
+            print("| btw, this is the eval_on_test check")
             print('-' * 84)
             quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
-            print("Quantiles:")
+            print("| Quantiles:")
             for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
-                print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
+                num = quant + 1
+                print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
+                test_quant_accs.append(acc)
+                test_quant_macros.append(f1)
+                test_quant_counts.append(count)
+
+        fold_dev_quant_accs.append(dev_quant_accs)
+        fold_dev_quant_macros.append(dev_quant_macros)
+        fold_dev_quant_counts.append(dev_quant_counts)
+        fold_test_quant_accs.append(test_quant_accs)
+        fold_test_quant_macros.append(test_quant_macros)
+        fold_test_quant_counts.append(test_quant_counts)
+
+
+    relevants = {
+        'fold dev quant accs': fold_dev_quant_accs,
+        'fold dev quant macros': fold_dev_quant_macros,
+        'fold dev quant counts': fold_dev_quant_counts,
+        'fold test quant accs': fold_test_quant_accs,
+        'fold test quant macros': fold_test_quant_macros,
+        'fold test quant counts': fold_test_quant_counts
+    }
 
     print('-' * 84)
     fmt = '| dev average | test loss (pure) {:5.4f} | Acc {:8.4f}'
     fmt2 = '| dev boost average | test loss (pure) {:5.4f} | Acc {:8.4f}'
     avg_dev_loss = sum(fold_dev_losses)/float(args.xfolds)
     avg_dev_acc = sum(fold_dev_accs)/float(args.xfolds)
+
+    relevants['dev acc'] = avg_dev_acc
+
     print(fmt.format(avg_dev_loss, avg_dev_acc))
     if args.stage2 > 0:
         avg_dev_boost_loss = sum(fold_dev_boost_losses)/float(args.xfolds)
@@ -547,36 +613,50 @@ if __name__ == "__main__":
     print('-' * 84)
 
     print('-' * 84)
-    dev_marco = f1_score(dev_all_targs, dev_all_preds, average="macro")
-    print("macro on dev:", dev_marco)
+    dev_macro = f1_score(dev_all_targs, dev_all_preds, average="macro")
+
+    relevants['dev macro'] = dev_macro
+
+    # TODO is it better to jsut get all of those number here?
+
+    print("macro on dev:", dev_macro)
     print('-' * 84)
     quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, dev_all_preds, dev_all_targs, avg_dev_acc)
     print("Quantiles:")
     for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
-        print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
+        num = quant + 1
+        print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
 
     if args.eval_on_test:
         print('-' * 84)
         fmt = '| test average | test loss (pure) {:5.4f} | Acc {:8.4f}'
         avg_test_loss = sum(fold_test_losses)/float(args.xfolds)
         avg_test_acc = sum(fold_test_accs)/float(args.xfolds)
+
+        relevants['test acc'] = avg_test_acc
+
         print(fmt.format(avg_test_loss, avg_test_acc))
         print('-' * 84)
         print('-' * 84)
-        test_marco = f1_score(test_all_targs, test_all_preds, average="macro")
-        print("macro on test:", test_marco)
+
+        test_macro = f1_score(test_all_targs, test_all_preds, average="macro")
+
+        relevants['test macro'] = test_macro
+
+        print("| macro on test:", test_macro)
         print('-' * 84)
         quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, test_all_preds, test_all_targs, avg_test_acc)
-        print("Quantiles:")
+        print("| Quantiles:")
         for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
-            print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
+            num = quant + 1
+            print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
+        print('-' * 84)
 
-    SAVE = True
     if SAVE:
-        relevants = {
-            'quants': quants,
-            
-        }
+        print("| Saving relevant info to pickle", args.save_pkl)
+        pkl_file = open(args.save_pkl, 'wb')
+        pkl.dump(relevants, pkl_file)
+        pkl_file.close()
 
     logfile.close()
     exit(0)
