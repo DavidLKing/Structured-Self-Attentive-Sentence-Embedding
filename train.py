@@ -14,7 +14,7 @@ import time
 import random
 import os
 
-
+import pdb
 
 def Frobenius(mat):
     size = mat.size()
@@ -29,7 +29,10 @@ def Frobenius(mat):
 def package(data, dictionary, is_train=True):
     """Package data for training / evaluation."""
     data = [json.loads(x) for x in data]
-    dat = [[dictionary.word2idx[y] for y in x['text']] for x in data]
+    # DLK hackeroos!
+    # dat = [[dictionary.word2idx[y] for y in x['text']] for x in data]
+    dat = [[dictionary.word2idx[y] for y in x['text'] if y in dictionary.word2idx] for x in data]
+    # <end>
     maxlen = 0
     for item in dat:
         maxlen = max(maxlen, len(item))
@@ -51,6 +54,8 @@ def evaluate(model, data_val, dictionary, criterion, device, args, fold, outlog=
     model.eval()  # turn on the eval() switch to disable dropout
     total_loss = 0
     total_correct = 0
+    predictions = []
+    all_targets = []
     for batch, i in enumerate(range(0, len(data_val), args.batch_size)):
         last = min(len(data_val), i+args.batch_size)
         intoks = data_val[i:last]
@@ -64,6 +69,8 @@ def evaluate(model, data_val, dictionary, criterion, device, args, fold, outlog=
         total_loss += criterion(output_flat, targets).item()
         prediction = torch.max(output_flat, 1)[1]
         total_correct += torch.sum((prediction == targets).float()).item()
+        predictions += prediction.tolist()
+        all_targets += targets.tolist()
         if outlog is not None:
             for i in range(len(intoks)):
                 in_words = json.loads(intoks[i])["text"]
@@ -85,7 +92,7 @@ def evaluate(model, data_val, dictionary, criterion, device, args, fold, outlog=
                 outlog.write(logstr + "\n")
     avg_batch_loss = total_loss / (len(data_val) // args.batch_size)
     acc = total_correct / len(data_val)
-    return avg_batch_loss, acc
+    return avg_batch_loss, acc, predictions, all_targets
 
 def analyze_data(model, data_train, dictionary, device, args):
     """run model against training set to find confusions"""

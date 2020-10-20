@@ -31,7 +31,7 @@ class BiLSTM(nn.Module):
             for word in self.dictionary.word2idx:
                 if word not in vocab:
                     to_add = torch.zeros_like(vectors[0]).uniform_(-0.25,0.25)
-                    print("uncached word: " + word)
+                    # print("uncached word: " + word)
                     unseen_cnt += 1
                     #print(to_add)
                 else:

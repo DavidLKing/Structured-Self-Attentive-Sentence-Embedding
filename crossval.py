@@ -10,13 +10,71 @@ import random
 import os
 import copy
 
-def get_splits(all_data, fold, label_data, args):
+# DLK hacking necessity!
+import pandas as pd
+import pdb
+import sys
+import json
+import random
+from sklearn.metrics import f1_score, accuracy_score
+from tqdm import tqdm
+
+
+def get_ranked_paras(paras, testing, metric):
+    '''
+    Convert pandas DataFrame into dict of {label : [ranked, paraphrases], label_2 : [...
+    :param paras: Pandas DataFrame
+    :param metric: column header
+    :param testing: set of src and aligns that can't be used
+    :return: dict of {label : [ranked, paraphrases], label_2 : [...
+    '''
+    ranked = {}
+    ignored = 0
+    for label in set(paras['label']):
+        ranked[label] = []
+        for paraphrase in paras[[metric, 'src', 'align', 'orig', 'para', 'label']].sort_values(by=metric).values:
+            score = paraphrase[0]
+            src = paraphrase[1]
+            align = paraphrase[2]
+            orig = paraphrase[3]
+            para = paraphrase[4]
+            para_label = paraphrase[5]
+            # TODO I think there's a better way of iterating through all this
+            # TODO remove print statements
+            if label == para_label:
+                if src in testing:
+                    # print("ignoring src", src, "in test")
+                    ignored += 1
+                    continue
+                elif align in testing:
+                    # print("ignoring align", align, "in test")
+                    ignored += 1
+                    continue
+                elif orig in testing:
+                    # print("ignoring orig", orig, "in test")
+                    ignored += 1
+                    continue
+                else:
+                    ranked[label].append((para, score))
+        # clean
+        pruned = 0
+        clean_ranked = {}
+        for label in ranked:
+            if len(ranked[label]) > 0:
+                clean_ranked[label] = ranked[label]
+            else:
+                pruned += 1
+    print("Pruned {} empty labels".format(pruned))
+    print("Ignored {} paraphrases from dev or test".format(ignored))
+    return ranked
+
+def get_splits(all_data, fold, label_data, all_paras, args):
     fold_size = len(all_data) // args.xfolds
     leftover = len(all_data) % fold_size
     fold_sizes = [fold_size] * args.xfolds
     leftovers = ([1] * leftover) + ([0] * (args.xfolds - leftover))
     fold_sizes = [a+b for a,b in zip(fold_sizes, leftovers)]
-    # range of test indices
+    # range of test indicessourc
     first = sum(fold_sizes[:fold])
     last = first + fold_sizes[fold]
     # range of dev indices; ensure that every fold has a different dev set
@@ -28,15 +86,131 @@ def get_splits(all_data, fold, label_data, args):
         data_train = all_data[:first] + all_data[dev_last:]
     else: #should only happen on last fold
         data_train = all_data[dev_last:first]
-    data_train += label_data
-    return data_train, data_val, data_test
+
+    # DLK para extraction
+    if all_para is not None:
+        val_sents = set([' '.join(json.loads(x)['text']) for x in data_val])
+        test_sents = set([' '.join(json.loads(x)['text']) for x in data_test])
+        test_items = val_sents.union(test_sents)
+        metric = 'bert_orig_para_dist'
+        data_paras = get_ranked_paras(all_para, test_items, metric)
+    return data_train, data_val, data_test, data_paras
     
+def sample(data_train, label_data, all_para, sample_rate, args):
+    # DLK add paraphrases
+    # dev_labels = [x.split(",")[0].split(":")[1].strip() for x in data_val]
+    # test_labels = [x.split(",")[0].split(":")[1].strip() for x in data_test]
+    # no_use_labels = dev_labels + test_labels
+    # EXPERIMENTING
+    # Quick dirtry rebuild of label dict
+    sampled = 0
+
+    string_to_label = {}
+    label_to_string = {}
+    for label_info in label_data:
+        info = json.loads(label_info)
+        assert ('label' in info)
+        assert ('text' in info)
+        label_text = ' '.join(info['text'])
+        string_to_label[label_text] = info['label']
+        label_to_string[info['label']] = label_text
+
+    out_train = []
+    for jsonitem in data_train:
+        item = json.loads(jsonitem)
+        item_label_int = item['label']
+        item_label = label_to_string[item_label_int]
+
+        # TODO some all_para[item_label] are still empty. How?
+        if all_para is not None and random.random() < sample_rate and item_label in all_para and len(all_para[item_label]) > 0:
+            # print("pre item", item)
+            # TODO this isn't always working, why? - because of low freq filter
+            paras = all_para[item_label]
+            candidates = [x[0] for x in paras]
+            scores = [x[1] for x in paras]
+            # TODO
+            '''
+            Traceback (most recent call last):
+              File "crossval.py", line 294, in <module>
+                data_train = sample(pre_para_data_train, label_data, data_paras, sample_rate, args)
+              File "crossval.py", line 118, in sample
+                alts = random.choices(candidates, weights=scores)
+              File "/home/david/miniconda2/envs/adam-rnn/lib/python3.6/random.py", line 362, in choices
+                total = cum_weights[-1]
+            IndexError: list index out of range
+            '''
+            alts = random.choices(candidates, weights=scores)
+            # Weird bug from random.choices
+            if type(alts) == list:
+                alternative = random.choices(candidates, weights=scores)[0]
+            elif type(alts) == str:
+                alternative = random.choices(candidates, weights=scores)
+            # alternative = alternative.replace('  ', ' ')
+            splitalt = alternative.split()
+            textalt = str(splitalt).replace(" '", ' "').replace("',", '",').replace("['", '["').replace("']", '"]')
+            newline = '{"label": ' + str(item_label_int) + ',"text": ' + textalt + '}\n'
+
+            # check the quality of the string
+            try:
+                json.loads(newline)
+            except:
+                pdb.set_trace()
+
+            out_train.append(newline)
+
+            sampled += 1
+        else:
+            out_train.append(jsonitem)
+    print("Added {} samples to training data".format(sampled))
+    return out_train
+
+def get_quantiles(datas):
+    label_num_str = [x.split('"')[2].strip(": ").strip(',') for x in datas]
+    label_set = set(label_num_str)
+    # I love python3
+    label_dict = {key: 0 for key in label_set}
+    for key in label_num_str: label_dict[key] += 1
+    sorted_label_list = sorted(label_dict, key=label_dict.get, reverse=True)
+    # 1, 2, 3, 4, and end
+    quant_idx_1, quant_idx_2, quant_idx_3, quant_idx_4, _ = [(len(sorted_label_list)//5) * (i+1) for i in range(5)]
+    quant_1 = sorted_label_list[0:quant_idx_1]
+    quant_2 = sorted_label_list[quant_idx_1:quant_idx_2]
+    quant_3 = sorted_label_list[quant_idx_2:quant_idx_3]
+    quant_4 = sorted_label_list[quant_idx_3:quant_idx_4]
+    quant_5 = sorted_label_list[quant_idx_4:]
+    return quant_1, quant_2, quant_3, quant_4, quant_5, label_dict, sorted_label_list
+
+def quantile_eval(quants, preds, targs, acc):
+    quant_acc = []
+    quant_macro_f1 = []
+    quant_counts = []
+    quant_num = 0
+    for quant in quants:
+        quant_num += 1
+        quant_targs = []
+        quant_preds = []
+        quant_count = 0
+        for targ, pred in zip(targs, preds):
+            if str(targ) in quant:
+                quant_count += 1
+                quant_targs.append(targ)
+                quant_preds.append(pred)
+        quant_counts.append(quant_count)
+        quant_macro_f1.append(f1_score(quant_targs, quant_preds, average='macro'))
+        quant_acc.append(accuracy_score(quant_targs, quant_preds))
+    return quant_acc, quant_macro_f1, quant_counts
 
 if __name__ == "__main__":
     # parse the arguments
     parser = get_base_parser()
     parser.add_argument('--data', type=str, default='',
                         help='location of the cross-validation data, should be a json file')
+    parser.add_argument('--para-data', type=str, default=None,
+                        help='location of weighed paraphrases')
+    parser.add_argument('--sample-rate', type=float, default=None,
+                        help='rate to sample ranked paraphrases at')
+    parser.add_argument('--indecrease', type=str, default=None,
+                        help='1/x increasing or decrease per epoch training?')
     parser.add_argument('--label-data', type=str, default='',
                         help='location of the label map (int -> sentence) in json format')
     parser.add_argument('--xfolds', type=int, default=10, help='number of cross-val folds')
@@ -48,7 +222,9 @@ if __name__ == "__main__":
             print("WARNING: You have a CUDA device, so you should probably run with --cuda")
         else:
             device = torch.device("cuda")
-    
+
+    # pdb.set_trace()
+
     # Set the random seed manually for reproducibility.
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed) # ignored if not --cuda
@@ -70,6 +246,18 @@ if __name__ == "__main__":
 
     print('Begin to load data.')
     all_data = open(args.data).readlines()
+    # DLK hacking
+    # quantiles = get_quantiles(all_data)
+    quant_1, quant_2, quant_3, quant_4, quant_5, label_counts, sorted_label_list = get_quantiles(all_data)
+    assert(sorted_label_list == quant_1 + quant_2 + quant_3 + quant_4 + quant_5)
+    quants = [quant_1, quant_2, quant_3, quant_4, quant_5]
+    if args.para_data:
+        all_para = pd.read_csv(args.para_data, sep='\t')
+        sample_rate = float(args.sample_rate)
+    else:
+        all_para = None
+        sample_rate = 0.0
+    # end
     label_data = open(args.label_data).readlines()
     fold_dev_losses = []
     fold_dev_accs = []
@@ -82,6 +270,13 @@ if __name__ == "__main__":
         intrep = 'softmax'
     elif args.sparsity in ['L1', 'entropy', 'similarity']:
         intrep = 'sigmoid'
+
+    dev_all_preds = []
+    dev_all_targs = []
+
+    test_all_preds = []
+    test_all_targs = []
+
     for fold in range(args.xfolds):
         print('-' * 84)
         print('BEGIN FOLD ' + str(fold))
@@ -142,23 +337,59 @@ if __name__ == "__main__":
         best_val_loss = None
         best_acc = None
         best_model = None
+
+        best_preds = None
+        best_targs = None
+
         #get the right splits
-        data_train, data_val, data_test = get_splits(all_data, fold, label_data, args)
+        pre_para_data_train, data_val, data_test, data_paras = get_splits(all_data, fold, label_data, all_para, args)
         for epoch in range(args.epochs):
             print('-' * 84)
             print('BEGIN FOLD ' + str(fold) + ' STAGE 1 EPOCH ' + str(epoch))
             print('-' * 84)
             print(fold_test_accs)
             print('-' * 84)
+            '''
+            IDEA! EUREKA
+            Okay, shuffle train but THEN do sampling. Should be able to import Adam/Prashant code wholish-sale
+            '''
+            # YEAH DLK HACKS
+            if args.indecrease:
+                indecrease = args.indecrease
+                if indecrease:
+
+                    if indecrease == 'increase':
+                        new_sample_rate = (float(epoch + 1) / args.epochs) * sample_rate
+                    elif indecrease == 'decrease':
+                        new_sample_rate = (1 - (float(epoch) / args.epochs)) * sample_rate
+                    elif indecrease == 'None':
+                        indecrease = None
+                        new_sample_rate = sample_rate
+                    else:
+                        sys.exit("args.sample_rate can only be increase, decrease, or None")
+                    print("Changed sample rate from {} to {}".format(sample_rate, new_sample_rate))
+            else:
+                indecrease = None
+                new_sample_rate = sample_rate
+
+            data_train = sample(pre_para_data_train, label_data, data_paras, new_sample_rate, args)
+            # <end>
             if args.shuffle:
                 random.shuffle(data_train)
             model = train(model, data_train, dictionary, criterion, 
                           optimizer, device, epoch, args)
             evaluate_start_time = time.time()
-            val_loss, acc = evaluate(model, data_val, dictionary, criterion, device, args, fold)
+            val_loss, acc, preds, targs = evaluate(model, data_val, dictionary, criterion, device, args, fold)
+            # pdb.set_trace()
             print('-' * 84)
             fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
+            macro = f1_score(targs, preds, average='macro')
+            print("CHECKING MACRO F1:", macro)
+            quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
+            print("Quantiles:")
+            for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+                print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
             print('-' * 84)
             # Begin trip option
             #if not best_acc or acc > best_acc:
@@ -203,6 +434,10 @@ if __name__ == "__main__":
                 save(model, args.save[:-3]+'.best_acc.pt')
                 best_acc = acc
                 best_model = copy.deepcopy(model)
+
+                best_targs = targs
+                best_preds = preds
+
             save(model, args.save[:-3]+'.epoch-{:02d}.pt'.format(epoch))
 
         print('-' * 84)
@@ -245,12 +480,19 @@ if __name__ == "__main__":
                 model = train(model, data_train, dictionary,
                               criterion, optimizer, device, epoch, args, boost=True)
                 evaluate_start_time = time.time()
-                val_loss, acc = evaluate(model, data_val, dictionary,
+                val_loss, acc, preds, targs = evaluate(model, data_val, dictionary,
                                          criterion, device, args, fold)
                 print('-' * 84)
                 fmt = '| evaluation | time: {:5.2f}s | valid loss (pure) {:5.4f} | Acc {:8.4f}'
                 print(fmt.format((time.time() - evaluate_start_time), val_loss, acc))
+                macro = f1_score(targs, preds, average='macro')
+                print("CHECKING MACRO F1:", macro)
+                print("btw, this is the stage 2 check")
                 print('-' * 84)
+                quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
+                print("Quantiles:")
+                for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+                    print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
                 # Save the model, if the validation loss is the best we've seen so far.
                 if not best_boost_val_loss or val_loss < best_boost_val_loss:
                     save(model, args.save)
@@ -268,18 +510,29 @@ if __name__ == "__main__":
         
         fold_dev_losses += [best_val_loss]
         fold_dev_accs += [best_acc]
+        dev_all_preds += best_preds
+        dev_all_targs += best_targs
         
         if args.eval_on_test:
             evaluate_start_time = time.time()
             best_model.to(device)
             best_model.flatten_parameters()
-            test_loss, acc = evaluate(best_model, data_test, dictionary, criterion, device, args, fold, outlog=logfile)
+            test_loss, acc, preds, targs = evaluate(best_model, data_test, dictionary, criterion, device, args, fold, outlog=logfile)
             fold_test_losses += [test_loss]
             fold_test_accs += [acc]
+            test_all_preds += preds
+            test_all_targs += targs
             print('-' * 84)
             fmt = '| test | time: {:5.2f}s | test loss (pure) {:5.4f} | Acc {:8.4f}'
             print(fmt.format((time.time() - evaluate_start_time), test_loss, acc))
+            macro = f1_score(targs, preds, average='macro')
+            print("CHECKING MACRO F1:", macro)
+            print("btw, this is the eval_on_test check")
             print('-' * 84)
+            quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
+            print("Quantiles:")
+            for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+                print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
 
     print('-' * 84)
     fmt = '| dev average | test loss (pure) {:5.4f} | Acc {:8.4f}'
@@ -293,6 +546,15 @@ if __name__ == "__main__":
         print(fmt.format(avg_dev_boost_loss, avg_dev_boost_acc))
     print('-' * 84)
 
+    print('-' * 84)
+    dev_marco = f1_score(dev_all_targs, dev_all_preds, average="macro")
+    print("macro on dev:", dev_marco)
+    print('-' * 84)
+    quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, dev_all_preds, dev_all_targs, avg_dev_acc)
+    print("Quantiles:")
+    for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+        print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
+
     if args.eval_on_test:
         print('-' * 84)
         fmt = '| test average | test loss (pure) {:5.4f} | Acc {:8.4f}'
@@ -300,6 +562,21 @@ if __name__ == "__main__":
         avg_test_acc = sum(fold_test_accs)/float(args.xfolds)
         print(fmt.format(avg_test_loss, avg_test_acc))
         print('-' * 84)
+        print('-' * 84)
+        test_marco = f1_score(test_all_targs, test_all_preds, average="macro")
+        print("macro on test:", test_marco)
+        print('-' * 84)
+        quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, test_all_preds, test_all_targs, avg_test_acc)
+        print("Quantiles:")
+        for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+            print("\tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(quant, acc, f1, count))
+
+    SAVE = True
+    if SAVE:
+        relevants = {
+            'quants': quants,
+            
+        }
 
     logfile.close()
     exit(0)
