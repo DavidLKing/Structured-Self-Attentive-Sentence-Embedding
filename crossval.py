@@ -116,10 +116,20 @@ def sample(data_train, label_data, all_para, sample_rate, args):
         label_to_string[info['label']] = label_text
 
     out_train = []
+    uniform_train = []
+
+    label_count = {}
+
+    MAX = 20 # for uniform---should be same number as genpara infreq num
+
     for jsonitem in data_train:
         item = json.loads(jsonitem)
         item_label_int = item['label']
         item_label = label_to_string[item_label_int]
+
+        if item_label not in label_count:
+            label_count[item_label] = 0
+        label_count[item_label] += 1
 
         # TODO some all_para[item_label] are still empty. How?
         if all_para is not None and random.random() < sample_rate and item_label in all_para and len(all_para[item_label]) > 0:
@@ -156,13 +166,42 @@ def sample(data_train, label_data, all_para, sample_rate, args):
             except:
                 pdb.set_trace()
 
+            if args.indecrease == 'uniform' and label_count[item_label] < MAX:
+                uniform_train.append(newline)
             out_train.append(newline)
 
             sampled += 1
         else:
             out_train.append(jsonitem)
+            if args.indecrease == 'uniform' and label_count[item_label] < MAX:
+                uniform_train.append(jsonitem)
+
+    for label in label_count:
+        if label_count[label] < MAX:
+            if all_para is not None and label in all_para and len(all_para[label]) > 0:
+                diff = MAX - label_count[label]
+                paras = all_para[label]
+                candidates = [x[0] for x in paras]
+                scores = [x[1] for x in paras]
+                label_int = string_to_label[label]
+                alts = random.choices(candidates, weights=scores, k=diff)
+                if type(alts) == list:
+                    for alt in alts:
+                        splitalt = alt.split()
+                        textalt = str(splitalt).replace(" '", ' "').replace("',", '",').replace("['", '["').replace("']", '"]')
+                        newline = '{"label": ' + str(label_int) + ',"text": ' + textalt + '}\n'
+                        try:
+                            json.loads(newline)
+                        except:
+                            print("Booooooo")
+                            pdb.set_trace()
+                        out_train.append(newline)
+                else:
+                    print("Booooooo again!")
+                    pdb.set_trace()
+
     print("Added {} samples to training data".format(sampled))
-    return out_train
+    return out_train, uniform_train
 
 def get_quantiles(datas):
     label_num_str = [x.split('"')[2].strip(": ").strip(',') for x in datas]
@@ -384,6 +423,8 @@ if __name__ == "__main__":
                         new_sample_rate = (float(epoch + 1) / args.epochs) * sample_rate
                     elif indecrease == 'decrease':
                         new_sample_rate = (1 - (float(epoch) / args.epochs)) * sample_rate
+                    elif indecrease == 'uniform':
+                        new_sample_rate = sample_rate
                     elif indecrease == 'None':
                         indecrease = None
                         new_sample_rate = sample_rate
@@ -394,11 +435,19 @@ if __name__ == "__main__":
                 indecrease = None
                 new_sample_rate = sample_rate
 
-            data_train = sample(pre_para_data_train, label_data, data_paras, new_sample_rate, args)
+
+            data_train, uniform_train = sample(pre_para_data_train, label_data, data_paras, new_sample_rate, args)
+            if args.indecrease == 'uniform':
+                stage1_data_train = uniform_train
+                stage2_data_train = data_train
+            else:
+                stage1_data_train = data_train
+                stage2_data_train = data_train
             # <end>
+            # pdb.set_trace()
             if args.shuffle:
-                random.shuffle(data_train)
-            model = train(model, data_train, dictionary, criterion, 
+                random.shuffle(stage1_data_train)
+            model = train(model, stage1_data_train, dictionary, criterion,
                           optimizer, device, epoch, args)
             evaluate_start_time = time.time()
             val_loss, acc, preds, targs = evaluate(model, data_val, dictionary, criterion, device, args, fold)
@@ -496,11 +545,11 @@ if __name__ == "__main__":
                     #z = list(zip(anchors, pos_exes, neg_exes))
                     #random.shuffle(z)
                     #anchors, pos_exes, neg_exes = zip(*z)
-                    random.shuffle(data_train)
+                    random.shuffle(stage2_data_train)
                 #model = train_trips(model, anchors, pos_exes, neg_exes,
                 #                    dictionary, trip_criterion, optimizer,
                 #                    device, args, boost=True)
-                model = train(model, data_train, dictionary,
+                model = train(model, stage2_data_train, dictionary,
                               criterion, optimizer, device, epoch, args, boost=True)
                 evaluate_start_time = time.time()
                 val_loss, acc, preds, targs = evaluate(model, data_val, dictionary,
@@ -619,13 +668,24 @@ if __name__ == "__main__":
 
     # TODO is it better to jsut get all of those number here?
 
+    dev_quant_accs_general = []
+    dev_quant_macro_general = []
+    dev_quant_counts_general = []
+
     print("macro on dev:", dev_macro)
     print('-' * 84)
     quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, dev_all_preds, dev_all_targs, avg_dev_acc)
     print("Quantiles:")
     for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
         num = quant + 1
+        dev_quant_accs_general.append(acc)
+        dev_quant_macro_general.append(f1)
+        dev_quant_counts_general.append(count)
         print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
+
+    test_quant_accs_general = []
+    test_quant_macro_general = []
+    test_quant_counts_general = []
 
     if args.eval_on_test:
         print('-' * 84)
@@ -649,8 +709,19 @@ if __name__ == "__main__":
         print("| Quantiles:")
         for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
             num = quant + 1
+            test_quant_accs_general.append(acc)
+            test_quant_macro_general.append(f1)
+            test_quant_counts_general.append(count)
             print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
         print('-' * 84)
+
+    relevants['dev quant accs general'] = dev_quant_accs_general
+    relevants['dev quant macro general'] = dev_quant_macro_general
+    relevants['dev quant counts general'] = dev_quant_counts_general
+
+    relevants['test quant accs general'] = test_quant_accs_general
+    relevants['test quant macro general'] = test_quant_macro_general
+    relevants['test quant counts general'] = test_quant_counts_general
 
     if SAVE:
         print("| Saving relevant info to pickle", args.save_pkl)
