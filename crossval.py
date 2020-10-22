@@ -206,18 +206,38 @@ def sample(data_train, label_data, all_para, sample_rate, args):
 def get_quantiles(datas):
     label_num_str = [x.split('"')[2].strip(": ").strip(',') for x in datas]
     label_set = set(label_num_str)
+    label_2_item_dict = {label_str: [] for label_str in label_set}
+    # TODO maybe a readable for loop is better?
+    [label_2_item_dict[x.split('"')[2].strip(": ").strip(',')].append(x) for x in datas]
     # I love python3
     label_dict = {key: 0 for key in label_set}
     for key in label_num_str: label_dict[key] += 1
     sorted_label_list = sorted(label_dict, key=label_dict.get, reverse=True)
+    maximum = len(datas) // 5
+    quant_1, quant_2, quant_3, quant_4, quant_5 = [[], [], [], [], []]
+    quants = quant_1, quant_2, quant_3, quant_4, quant_5
+    # quant_counts = []
+    # print("sorted", len(sorted_label_list))
+    for quant in quants:
+        temp = []
+        while len(temp) < maximum and len(sorted_label_list) > 0:
+            label = sorted_label_list.pop(0)
+            temp += label_2_item_dict[label]
+            quant.append(label)
+        # print(len(temp))
+    # for i in quants:
+    #     print(len(i))
+    # print('total', sum([len(x) for x in quants]))
+    # WHOOPS bad quants
     # 1, 2, 3, 4, and end
-    quant_idx_1, quant_idx_2, quant_idx_3, quant_idx_4, _ = [(len(sorted_label_list)//5) * (i+1) for i in range(5)]
-    quant_1 = sorted_label_list[0:quant_idx_1]
-    quant_2 = sorted_label_list[quant_idx_1:quant_idx_2]
-    quant_3 = sorted_label_list[quant_idx_2:quant_idx_3]
-    quant_4 = sorted_label_list[quant_idx_3:quant_idx_4]
-    quant_5 = sorted_label_list[quant_idx_4:]
-    return quant_1, quant_2, quant_3, quant_4, quant_5, label_dict, sorted_label_list
+    # quant_idx_1, quant_idx_2, quant_idx_3, quant_idx_4, _ = [(len(sorted_label_list)//5) * (i+1) for i in range(5)]
+    # quant_1 = sorted_label_list[0:quant_idx_1]
+    # quant_2 = sorted_label_list[quant_idx_1:quant_idx_2]
+    # quant_3 = sorted_label_list[quant_idx_2:quant_idx_3]
+    # quant_4 = sorted_label_list[quant_idx_3:quant_idx_4]
+    # quant_5 = sorted_label_list[quant_idx_4:]
+    all_sorted = quant_1 + quant_2 + quant_3 + quant_4 + quant_5
+    return quant_1, quant_2, quant_3, quant_4, quant_5, label_dict, all_sorted
 
 def quantile_eval(quants, preds, targs, acc):
     quant_acc = []
