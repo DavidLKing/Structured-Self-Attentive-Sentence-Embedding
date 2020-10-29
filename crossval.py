@@ -325,12 +325,13 @@ if __name__ == "__main__":
     # TODO possibly remove if we have a memroy issue
     relevants = {}
     # Please let this work
-    if os.path.exists(args.word_vector):
-        # config['word-vector']):
-        print('Loading word vectors from', args.word_vector)
-        word_embs = torch.load(args.word_vector)
-    else:
-        sys.exit("Word vector file not found")
+    # seems to work but it I think the vectors are leaking into between folds
+    # if os.path.exists(args.word_vector):
+    #     # config['word-vector']):
+    #     print('Loading word vectors from', args.word_vector)
+    #     word_embs = torch.load(args.word_vector)
+    # else:
+    #     sys.exit("Word vector file not found")
     # end
     label_data = open(args.label_data).readlines()
     fold_dev_losses = []
@@ -376,7 +377,7 @@ if __name__ == "__main__":
                     'ncat': args.ncat,
                     'intrep': intrep,
                     'dictionary': dictionary,
-                    'word-embs': word_embs,
+                    'word-embs': args.word_vector,
                     'class-number': args.class_number,
                     'reserved': args.reserved
                     })
@@ -394,7 +395,7 @@ if __name__ == "__main__":
                     'ncat': args.ncat,
                     'intrep': intrep,
                     'dictionary': dictionary,
-                    'word-vector': word_embs,
+                    'word-vector': args.word_vector,
                     'class-number': args.class_number,
                     'reserved': args.reserved
                     })

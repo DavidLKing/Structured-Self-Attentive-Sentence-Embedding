@@ -3,6 +3,7 @@ import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import os
+import sys
 
 
 class BiLSTM(nn.Module):
@@ -21,7 +22,15 @@ class BiLSTM(nn.Module):
 #        self.init_weights()
         self.encoder.weight.data[self.dictionary.word2idx['<pad>']] = 0
 
-        vectors = config['word-embs']
+        # vectors = config['word-embs']
+
+        if os.path.exists(config['word-embs']):
+            # config['word-vector']):
+            print('Loading word vectors from', config['word-embs'])
+            vectors = torch.load(config['word-embs'])
+        else:
+            sys.exit("Word vector file not found")
+
         assert vectors[3] >= config['ninp']
         vocab = vectors[1]
         vectors = vectors[2]
