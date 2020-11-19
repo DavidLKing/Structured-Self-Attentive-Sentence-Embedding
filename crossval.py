@@ -450,7 +450,7 @@ if __name__ == "__main__":
                         indecrease = None
                         new_sample_rate = sample_rate
                     else:
-                        sys.exit("args.sample_rate can only be increase, decrease, or None")
+                        sys.exit("args.sample_rate can only be increase, decrease, uniform, or None")
                     print("Changed sample rate from {} to {}".format(sample_rate, new_sample_rate))
             else:
                 indecrease = None
