@@ -90,7 +90,11 @@ def evaluate(model, data_val, dictionary, criterion, device, args, fold, outlog=
                 logstr = "\t".join((inputstr, str(prediction[i].item()),
                                     str(targets[i].item()), inter, str(fold)))
                 outlog.write(logstr + "\n")
-    avg_batch_loss = total_loss / (len(data_val) // args.batch_size)
+    try:
+        avg_batch_loss = total_loss / (len(data_val) // args.batch_size)
+    except:
+        pdb.set_trace()
+        avg_batch_loss = 0.0
     acc = total_correct / len(data_val)
     return avg_batch_loss, acc, predictions, all_targets
 

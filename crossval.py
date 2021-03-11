@@ -108,7 +108,10 @@ def sample(data_train, label_data, all_para, sample_rate, args):
     string_to_label = {}
     label_to_string = {}
     for label_info in label_data:
-        info = json.loads(label_info)
+        try:
+            info = json.loads(label_info)
+        except:
+            pdb.set_trace()
         assert ('label' in info)
         assert ('text' in info)
         label_text = ' '.join(info['text'])
@@ -123,7 +126,10 @@ def sample(data_train, label_data, all_para, sample_rate, args):
     MAX = 20 # for uniform---should be same number as genpara infreq num
 
     for jsonitem in data_train:
-        item = json.loads(jsonitem)
+        try:
+            item = json.loads(jsonitem)
+        except:
+            pdb.set_trace()
         item_label_int = item['label']
         item_label = label_to_string[item_label_int]
 
@@ -309,9 +315,9 @@ if __name__ == "__main__":
     all_data = open(args.data).readlines()
     # DLK hacking
     # quantiles = get_quantiles(all_data)
-    quant_1, quant_2, quant_3, quant_4, quant_5, label_counts, sorted_label_list = get_quantiles(all_data)
-    assert(sorted_label_list == quant_1 + quant_2 + quant_3 + quant_4 + quant_5)
-    quants = [quant_1, quant_2, quant_3, quant_4, quant_5]
+    # quant_1, quant_2, quant_3, quant_4, quant_5, label_counts, sorted_label_list = get_quantiles(all_data)
+    # assert(sorted_label_list == quant_1 + quant_2 + quant_3 + quant_4 + quant_5)
+    # quants = [quant_1, quant_2, quant_3, quant_4, quant_5]
     if args.para_data:
         all_para = pd.read_csv(args.para_data, sep='\t')
         sample_rate = float(args.sample_rate)
@@ -614,14 +620,14 @@ if __name__ == "__main__":
         test_quant_macros = []
         test_quant_counts = []
 
-        quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, best_preds, best_targs, best_acc)
-        print("| Quantiles:")
-        for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
-            num = quant + 1
-            print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
-            dev_quant_accs.append(acc)
-            dev_quant_macros.append(f1)
-            dev_quant_counts.append(count)
+        # quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, best_preds, best_targs, best_acc)
+        # print("| Quantiles:")
+        # for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+            # num = quant + 1
+            # print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
+            # dev_quant_accs.append(acc)
+            # dev_quant_macros.append(f1)
+            # dev_quant_counts.append(count)
         print('-' * 84)
 
         if args.eval_on_test:
@@ -641,21 +647,21 @@ if __name__ == "__main__":
             print("| CHECKING MACRO F1:", macro)
             print("| btw, this is the eval_on_test check")
             print('-' * 84)
-            quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
-            print("| Quantiles:")
-            for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
-                num = quant + 1
-                print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
-                test_quant_accs.append(acc)
-                test_quant_macros.append(f1)
-                test_quant_counts.append(count)
+            # quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, preds, targs, acc)
+            # print("| Quantiles:")
+            # for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+                # num = quant + 1
+                # print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
+                # test_quant_accs.append(acc)
+                # test_quant_macros.append(f1)
+                # test_quant_counts.append(count)
 
-        fold_dev_quant_accs.append(dev_quant_accs)
-        fold_dev_quant_macros.append(dev_quant_macros)
-        fold_dev_quant_counts.append(dev_quant_counts)
-        fold_test_quant_accs.append(test_quant_accs)
-        fold_test_quant_macros.append(test_quant_macros)
-        fold_test_quant_counts.append(test_quant_counts)
+        # fold_dev_quant_accs.append(dev_quant_accs)
+        # fold_dev_quant_macros.append(dev_quant_macros)
+        # fold_dev_quant_counts.append(dev_quant_counts)
+        # fold_test_quant_accs.append(test_quant_accs)
+        # fold_test_quant_macros.append(test_quant_macros)
+        # fold_test_quant_counts.append(test_quant_counts)
 
 
     relevants = {
@@ -695,14 +701,14 @@ if __name__ == "__main__":
 
     print("macro on dev:", dev_macro)
     print('-' * 84)
-    quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, dev_all_preds, dev_all_targs, avg_dev_acc)
-    print("Quantiles:")
-    for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
-        num = quant + 1
-        dev_quant_accs_general.append(acc)
-        dev_quant_macro_general.append(f1)
-        dev_quant_counts_general.append(count)
-        print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
+    # quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, dev_all_preds, dev_all_targs, avg_dev_acc)
+    # print("Quantiles:")
+    # for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+        # num = quant + 1
+        # dev_quant_accs_general.append(acc)
+        # dev_quant_macro_general.append(f1)
+        # dev_quant_counts_general.append(count)
+        # print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
 
     test_quant_accs_general = []
     test_quant_macro_general = []
@@ -726,23 +732,23 @@ if __name__ == "__main__":
 
         print("| macro on test:", test_macro)
         print('-' * 84)
-        quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, test_all_preds, test_all_targs, avg_test_acc)
-        print("| Quantiles:")
-        for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
-            num = quant + 1
-            test_quant_accs_general.append(acc)
-            test_quant_macro_general.append(f1)
-            test_quant_counts_general.append(count)
-            print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
+        # quant_acc, quant_macro_f1, quant_counts = quantile_eval(quants, test_all_preds, test_all_targs, avg_test_acc)
+        # print("| Quantiles:")
+        # for quant, (acc, f1, count) in enumerate(zip(quant_acc, quant_macro_f1, quant_counts)):
+            # num = quant + 1
+            # test_quant_accs_general.append(acc)
+            # test_quant_macro_general.append(f1)
+            # test_quant_counts_general.append(count)
+            # print("| \tNum: {}\tAccuracy: {}\tMacro F1: {}\tItem Count: {}".format(num, acc, f1, count))
         print('-' * 84)
 
-    relevants['dev quant accs general'] = dev_quant_accs_general
-    relevants['dev quant macro general'] = dev_quant_macro_general
-    relevants['dev quant counts general'] = dev_quant_counts_general
+    # relevants['dev quant accs general'] = dev_quant_accs_general
+    # relevants['dev quant macro general'] = dev_quant_macro_general
+    # relevants['dev quant counts general'] = dev_quant_counts_general
 
-    relevants['test quant accs general'] = test_quant_accs_general
-    relevants['test quant macro general'] = test_quant_macro_general
-    relevants['test quant counts general'] = test_quant_counts_general
+    # relevants['test quant accs general'] = test_quant_accs_general
+    # relevants['test quant macro general'] = test_quant_macro_general
+    # relevants['test quant counts general'] = test_quant_counts_general
 
     if SAVE:
         print("| Saving relevant info to pickle", args.save_pkl)
