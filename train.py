@@ -46,10 +46,14 @@ def package(data, dictionary, is_train=True):
                 dat[i].append(dictionary.word2idx['<pad>'])
     with torch.set_grad_enabled(is_train):
         dat = torch.tensor(dat, dtype=torch.long)
+        # try:
+        # print("targets", targets)
         targets = torch.tensor(targets, dtype=torch.long)
+        # except:
+        #     pdb.set_trace()
     return dat.t(), targets
 
-def evaluate(model, data_val, dictionary, criterion, device, args, fold, outlog=None):
+def evaluate(model, data_val, dictionary, criterion, device, args, fold=None, outlog=None):
     """evaluate the model while training"""
     model.eval()  # turn on the eval() switch to disable dropout
     total_loss = 0
@@ -74,12 +78,15 @@ def evaluate(model, data_val, dictionary, criterion, device, args, fold, outlog=
         if outlog is not None:
             for i in range(len(intoks)):
                 in_words = json.loads(intoks[i])["text"]
-                if attention is not None:
-                    atts = ["|".join([str(a) for a in attention[i,:,k].tolist()])
-                            for k in range(len(in_words))]
-                    in_atts = [a+"|"+b for a,b in zip(in_words, atts)]
-                else:
-                    in_atts = in_words
+                try:
+                    if attention is not None:
+                        atts = ["|".join([str(a) for a in attention[i,:,k].tolist()])
+                                for k in range(len(in_words))]
+                        in_atts = [a+"|"+b for a,b in zip(in_words, atts)]
+                    else:
+                        in_atts = in_words
+                except:
+                    pdb.set_trace()
                 inputstr = " ".join(in_atts)
                 if intermediate is not None:
                     vbs = [" ".join([str(v) for v in intermediate[i,j,:].tolist()])
@@ -87,8 +94,12 @@ def evaluate(model, data_val, dictionary, criterion, device, args, fold, outlog=
                     inter = "|".join(vbs)
                 else:
                     inter = "NA"
-                logstr = "\t".join((inputstr, str(prediction[i].item()),
+                if fold:
+                    logstr = "\t".join((inputstr, str(prediction[i].item()),
                                     str(targets[i].item()), inter, str(fold)))
+                else:
+                    logstr = "\t".join((inputstr, str(prediction[i].item()),
+                                        str(targets[i].item()), inter))
                 outlog.write(logstr + "\n")
     try:
         avg_batch_loss = total_loss / (len(data_val) // args.batch_size)
@@ -380,13 +391,16 @@ if __name__ == '__main__':
             'nlayers': args.nlayers,
             'nhid': args.nhid,
             'ninp': args.emsize,
-            'pooling': 'all',
+            'pooling': args.pooling,
             'attention-unit': args.attention_unit,
             'attention-hops': args.attention_hops,
             'nfc': args.nfc,
+            'ncat': args.ncat,
+            'intrep': intrep,
             'dictionary': dictionary,
-            'word-vector': args.word_vector,
-            'class-number': args.class_number
+            'word-embs': args.word_vector,
+            'class-number': args.class_number,
+            'reserved': args.reserved
         })
         model = model.to(device)
 

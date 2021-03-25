@@ -280,6 +280,8 @@ if __name__ == "__main__":
                         help='1/x increasing or decrease per epoch training?')
     parser.add_argument('--label-data', type=str, default='',
                         help='location of the label map (int -> sentence) in json format')
+    parser.add_argument('--device', type=str, default='',
+                        help='cuda device number, ignored if GPU')
     parser.add_argument('--xfolds', type=int, default=10, help='number of cross-val folds')
     args = parser.parse_args()
     
@@ -288,7 +290,8 @@ if __name__ == "__main__":
         if not args.cuda:
             print("WARNING: You have a CUDA device, so you should probably run with --cuda")
         else:
-            device = torch.device("cuda")
+            device = torch.device("cuda:{}".format(args.device))
+            print("Using cuda device: {}".format(args.device))
 
     # pdb.set_trace()
 
@@ -431,6 +434,7 @@ if __name__ == "__main__":
 
         #get the right splits
         pre_para_data_train, data_val, data_test, data_paras = get_splits(all_data, fold, label_data, all_para, args)
+        pdb.set_trace()
         for epoch in range(args.epochs):
             print('-' * 84)
             print('BEGIN FOLD ' + str(fold) + ' STAGE 1 EPOCH ' + str(epoch))
