@@ -150,7 +150,8 @@ def sample(data_train, label_data, all_para, sample_rate, args):
 
     label_count = {}
 
-    MAX = 20 # for uniform---should be same number as genpara infreq num
+    MAX = 100 # for uniform---should be same number as genpara infreq num
+    REALMAX = 200
 
     for jsonitem in data_train:
         try:
@@ -210,7 +211,7 @@ def sample(data_train, label_data, all_para, sample_rate, args):
                 uniform_train.append(jsonitem)
 
     for label in label_count:
-        if label_count[label] < MAX:
+        if label_count[label] < REALMAX:
             if all_para is not None and label in all_para and len(all_para[label]) > 0:
                 diff = MAX - label_count[label]
                 paras = all_para[label]
