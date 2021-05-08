@@ -116,11 +116,11 @@ def load_splits(label_data, all_paras, metric, args):
         datas.append(group)
     data_train, data_val, data_test = datas
     # DLK para extraction
-    if all_para is not None:
+    if all_paras is not None:
         val_sents = set([' '.join(json.loads(x)['text']) for x in data_val])
         test_sents = set([' '.join(json.loads(x)['text']) for x in data_test])
         test_items = val_sents.union(test_sents)
-        data_paras = get_ranked_paras(all_para, test_items, metric)
+        data_paras = get_ranked_paras(all_paras, test_items, metric)
     return data_train, data_val, data_test, data_paras
     
 def sample(data_train, label_data, all_para, sample_rate, args):
@@ -150,8 +150,10 @@ def sample(data_train, label_data, all_para, sample_rate, args):
 
     label_count = {}
 
-    MAX = 100 # for uniform---should be same number as genpara infreq num
-    REALMAX = 200
+    # TODO hack to make sure these don't effect other sampling schemas
+    if args.indecrease == 'uniform':
+        MAX = 100 # for uniform---should be same number as genpara infreq num
+        REALMAX = 200
 
     for jsonitem in data_train:
         try:
@@ -210,29 +212,30 @@ def sample(data_train, label_data, all_para, sample_rate, args):
             if args.indecrease == 'uniform' and label_count[item_label] < MAX:
                 uniform_train.append(jsonitem)
 
-    for label in label_count:
-        if label_count[label] < REALMAX:
-            if all_para is not None and label in all_para and len(all_para[label]) > 0:
-                diff = MAX - label_count[label]
-                paras = all_para[label]
-                candidates = [x[0] for x in paras]
-                scores = [x[1] for x in paras]
-                label_int = string_to_label[label]
-                alts = random.choices(candidates, weights=scores, k=diff)
-                if type(alts) == list:
-                    for alt in alts:
-                        splitalt = alt.split()
-                        textalt = str(splitalt).replace(" '", ' "').replace("',", '",').replace("['", '["').replace("']", '"]')
-                        newline = '{"label": ' + str(label_int) + ',"text": ' + textalt + '}\n'
-                        try:
-                            json.loads(newline)
-                        except:
-                            print("Booooooo")
-                            pdb.set_trace()
-                        out_train.append(newline)
-                else:
-                    print("Booooooo again!")
-                    pdb.set_trace()
+    if args.indecrease == 'uniform':
+        for label in label_count:
+            if label_count[label] < REALMAX:
+                if all_para is not None and label in all_para and len(all_para[label]) > 0:
+                    diff = REALMAX - label_count[label]
+                    paras = all_para[label]
+                    candidates = [x[0] for x in paras]
+                    scores = [x[1] for x in paras]
+                    label_int = string_to_label[label]
+                    alts = random.choices(candidates, weights=scores, k=diff)
+                    if type(alts) == list:
+                        for alt in alts:
+                            splitalt = alt.split()
+                            textalt = str(splitalt).replace(" '", ' "').replace("',", '",').replace("['", '["').replace("']", '"]')
+                            newline = '{"label": ' + str(label_int) + ',"text": ' + textalt + '}\n'
+                            try:
+                                json.loads(newline)
+                            except:
+                                print("Booooooo")
+                                pdb.set_trace()
+                            uniform_train.append(newline)
+                    else:
+                        print("Booooooo again!")
+                        pdb.set_trace()
 
     print("Added {} samples to training data".format(sampled))
     return out_train, uniform_train
