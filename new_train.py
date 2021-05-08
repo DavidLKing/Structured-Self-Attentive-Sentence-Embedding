@@ -138,6 +138,8 @@ def sample(data_train, label_data, all_para, sample_rate, args):
         try:
             info = json.loads(label_info)
         except:
+            print("error loating json")
+            print("info = json.loads(label_info)")
             pdb.set_trace()
         assert ('label' in info)
         assert ('text' in info)
@@ -159,6 +161,8 @@ def sample(data_train, label_data, all_para, sample_rate, args):
         try:
             item = json.loads(jsonitem)
         except:
+            print("error loating json")
+            print("info = json.loads(jsonitem)")
             pdb.set_trace()
         item_label_int = item['label']
         item_label = label_to_string[item_label_int]
@@ -200,6 +204,8 @@ def sample(data_train, label_data, all_para, sample_rate, args):
             try:
                 json.loads(newline)
             except:
+                print("Error loading json")
+                print("json.loads(newline)")
                 pdb.set_trace()
 
             if args.indecrease == 'uniform' and label_count[item_label] < MAX:
