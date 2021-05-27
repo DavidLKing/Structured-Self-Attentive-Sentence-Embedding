@@ -100,6 +100,17 @@ def load_splits(label_data, all_paras, metric, args):
     datas = []
     for dataset in [args.train_data, args.val_data, args.test_data]:
         group = []
+        num = 0
+        print("dataset", dataset)
+        testfile = open(dataset, 'r')
+        for line in testfile:
+            try:
+                print("num", num)
+                num += 1
+                print("Line", line)
+            except:
+                pdb.set_trace()
+        testfile.close()
         with open(dataset, 'r') as lines:
             for line in tqdm(lines):
                 if not line.startswith(("#START")):
