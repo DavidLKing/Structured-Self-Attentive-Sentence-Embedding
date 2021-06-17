@@ -153,9 +153,9 @@ def sample(data_train, label_data, all_para, sample_rate, args):
     label_count = {}
 
     # TODO hack to make sure these don't effect other sampling schemas
-    if args.indecrease == 'uniform':
-        MAX = 100 # for uniform---should be same number as genpara infreq num
-        REALMAX = 200
+    if 'uniform' in args.sampling_schema:
+        MAX = 10 # for uniform---should be same number as genpara infreq num
+        REALMAX = 20
 
     for jsonitem in data_train:
         try:
@@ -208,17 +208,17 @@ def sample(data_train, label_data, all_para, sample_rate, args):
                 print("json.loads(newline)")
                 pdb.set_trace()
 
-            if args.indecrease == 'uniform' and label_count[item_label] < MAX:
+            if 'uniform' in args.sampling_schema and label_count[item_label] < MAX:
                 uniform_train.append(newline)
             out_train.append(newline)
 
             sampled += 1
         else:
             out_train.append(jsonitem)
-            if args.indecrease == 'uniform' and label_count[item_label] < MAX:
+            if 'uniform' in args.sampling_schema and label_count[item_label] < MAX:
                 uniform_train.append(jsonitem)
 
-    if args.indecrease == 'uniform':
+    if 'uniform' in args.sampling_schema:
         for label in label_count:
             if label_count[label] < REALMAX:
                 if all_para is not None and label in all_para and len(all_para[label]) > 0:
@@ -321,8 +321,8 @@ if __name__ == "__main__":
                         help='are we saving a pickle?')
     parser.add_argument('--metric', type=str, default=None,
                         help='head used for ranking')
-    parser.add_argument('--indecrease', type=str, default=None,
-                        help='1/x increasing or decrease per epoch training?')
+    parser.add_argument('--sampling-schema', type=str, default=None,
+                        help='1/x increasing or decrease, uniform, None,\nor uniform +/- in/decreasing per epoch training?')
     parser.add_argument('--label-data', type=str, default='',
                         help='location of the label map (int -> sentence) in json format')
     parser.add_argument('--device', type=str, default='',
@@ -488,17 +488,19 @@ if __name__ == "__main__":
         Okay, shuffle train but THEN do sampling. Should be able to import Adam/Prashant code wholish-sale
         '''
         # YEAH DLK HACKS
-        if args.indecrease:
-            indecrease = args.indecrease
+        # Fak, apparently stage two training data doesn't get passed into the next block
+        # TODO optimize this so I don't have to generate the datasets EVERY time
+        if args.sampling_schema:
+            indecrease = args.sampling_schema
             if indecrease:
 
-                if indecrease == 'increase':
+                if  'increase' in indecrease:
                     new_sample_rate = (float(epoch + 1) / args.epochs) * sample_rate
-                elif indecrease == 'decrease':
+                elif 'decrease' in indecrease:
                     new_sample_rate = (1 - (float(epoch) / args.epochs)) * sample_rate
                 elif indecrease == 'uniform':
                     new_sample_rate = sample_rate
-                elif indecrease == 'None':
+                elif  'None' == indecrease:
                     indecrease = None
                     new_sample_rate = sample_rate
                 else:
@@ -510,7 +512,7 @@ if __name__ == "__main__":
 
 
         data_train, uniform_train = sample(pre_para_data_train, label_data, data_paras, new_sample_rate, args)
-        if args.indecrease == 'uniform':
+        if 'uniform' in args.sampling_schema:
             stage1_data_train = uniform_train
             stage2_data_train = data_train
         else:
@@ -616,6 +618,42 @@ if __name__ == "__main__":
             #                                               corrects,
             #                                               right_map,
             #                                               wrong_map)
+
+            '''
+                    IDEA! EUREKA
+                    Okay, shuffle train but THEN do sampling. Should be able to import Adam/Prashant code wholish-sale
+                    '''
+            # YEAH DLK HACKS
+            # Fak, apparently stage two training data doesn't get passed into the next block
+            # TODO optimize this so I don't have to generate the datasets EVERY time
+            if args.sampling_schema:
+                indecrease = args.sampling_schema
+                if indecrease:
+
+                    if 'increase' in indecrease:
+                        new_sample_rate = (float(epoch + 1) / args.epochs) * sample_rate
+                    elif 'decrease' in indecrease:
+                        new_sample_rate = (1 - (float(epoch) / args.epochs)) * sample_rate
+                    elif indecrease == 'uniform':
+                        new_sample_rate = sample_rate
+                    elif 'None' == indecrease:
+                        indecrease = None
+                        new_sample_rate = sample_rate
+                    else:
+                        sys.exit("args.sample_rate can only be increase, decrease, uniform, or None")
+                    print("Changed sample rate from {} to {}".format(sample_rate, new_sample_rate))
+            else:
+                indecrease = None
+                new_sample_rate = sample_rate
+
+            data_train, uniform_train = sample(pre_para_data_train, label_data, data_paras, new_sample_rate, args)
+            if 'uniform' in args.sampling_schema:
+                stage1_data_train = uniform_train
+                stage2_data_train = data_train
+            else:
+                stage1_data_train = data_train
+                stage2_data_train = data_train
+
             if args.shuffle:
                 #z = list(zip(anchors, pos_exes, neg_exes))
                 #random.shuffle(z)
