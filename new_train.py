@@ -154,8 +154,8 @@ def sample(data_train, label_data, all_para, sample_rate, args):
 
     # TODO hack to make sure these don't effect other sampling schemas
     if 'uniform' in args.sampling_schema:
-        MAX = 10 # for uniform---should be same number as genpara infreq num
-        REALMAX = 20
+        MAX = 20 # for uniform---should be same number as genpara infreq num
+        REALMAX = 40
 
     for jsonitem in data_train:
         try:
